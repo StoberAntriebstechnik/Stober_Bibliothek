@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.6">
+  <DUT Name="ST_DeviceInfo" Id="{42d18a50-1fd8-4a2f-bcfb-b8efa5eb2b76}">
+    <Declaration><![CDATA[{attribute  'hide'}
+TYPE ST_DeviceInfo :
+STRUCT
+	Slave_Address		:STRING(16);
+	Production_Number	:STRING(16);
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

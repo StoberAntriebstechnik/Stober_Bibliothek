@@ -1,0 +1,38 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.6">
+  <POU Name="CONCAT8" Id="{acac6686-f862-4168-a7d7-2e57a6c3c2a7}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION CONCAT8 : T_MaxString
+VAR_INPUT
+	STR1	:T_MaxString;
+	STR2	:T_MaxString;
+	STR3	:T_MaxString;
+	STR4	:T_MaxString;
+	STR5	:T_MaxString;
+	STR6	:T_MaxString;
+	STR7	:T_MaxString;
+	STR8	:T_MaxString;
+END_VAR
+VAR
+	_MainString	:T_MaxString:='';
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_MainString:=CONCAT(STR1:=STR1,STR2:=STR2);
+_MainString:=CONCAT(STR1:=_MainString,STR2:=STR3);
+_MainString:=CONCAT(STR1:=_MainString,STR2:=STR4);
+_MainString:=CONCAT(STR1:=_MainString,STR2:=STR5);
+_MainString:=CONCAT(STR1:=_MainString,STR2:=STR6);
+_MainString:=CONCAT(STR1:=_MainString,STR2:=STR7);
+_MainString:=CONCAT(STR1:=_MainString,STR2:=STR8);
+
+CONCAT8:=_MainString;]]></ST>
+    </Implementation>
+    <LineIds Name="CONCAT8">
+      <LineId Id="21" Count="1" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="23" Count="3" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="27" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

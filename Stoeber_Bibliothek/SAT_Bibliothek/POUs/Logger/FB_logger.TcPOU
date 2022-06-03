@@ -1,0 +1,61 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.6">
+  <POU Name="FB_logger" Id="{27aa8ed8-4307-44a0-a47f-54689f95b083}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_logger
+VAR
+	_fbGetLocalTime		:FB_LocalSystemTime;
+	_TimeStampNow		:STRING;
+	_logmessage			:T_MaxString;
+	_StEvent			:ST_Event;
+	_PersistentStorage  :I_PersistentEventStorage;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <Method Name="AddEvent" Id="{80b2d645-bf54-4db2-a513-ed57198f2906}">
+      <Declaration><![CDATA[METHOD PUBLIC AddEvent : BOOL
+VAR_INPUT
+	 EventType:T_MaxString;
+	//EventSeverity:TcEventSeverity;
+	//nEventIdentity:UINT;
+	sEventText:T_MaxString;
+END_VAR
+VAR
+	_TrigEvent:R_Trig;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//Assign event structure 
+_StEvent.EventType:=EventType;
+_StEvent.sEventText:=sEventText;
+GetSystemTimeStamp(stEvent:=_StEvent);
+
+//Call storage event 
+_PersistentStorage.StoreEvent(stEvent:=_StEvent);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="FB_init" Id="{90d8c82a-1804-467d-86e3-ca0f87aa4c53}">
+      <Declaration><![CDATA[METHOD FB_init : BOOL
+VAR_INPUT
+	bInitRetains : BOOL; // if TRUE, the retain variables are initialized (warm start / cold start)
+	bInCopyCode : BOOL;  // if TRUE, the instance afterwards gets moved into the copy code (online change)
+	iPersitentstorage:I_PersistentEventStorage;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_PersistentStorage:=iPersitentstorage;]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="FB_logger">
+      <LineId Id="257" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_logger.AddEvent">
+      <LineId Id="91" Count="0" />
+      <LineId Id="108" Count="0" />
+      <LineId Id="95" Count="3" />
+      <LineId Id="68" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_logger.FB_init">
+      <LineId Id="7" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

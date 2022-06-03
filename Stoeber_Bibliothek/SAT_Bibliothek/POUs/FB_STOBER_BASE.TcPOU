@@ -1,0 +1,72 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.6">
+  <POU Name="FB_STOBER_BASE" Id="{df0e1618-f83e-4910-ad78-a7a81ca791a3}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK ABSTRACT FB_STOBER_BASE
+VAR
+	
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <Method Name="GetInstanceName" Id="{cfa95f20-893a-4534-a554-4054bfe9409c}">
+      <Declaration><![CDATA[METHOD GetInstanceName : T_MAXSTRING
+VAR_INPUT
+END_VAR
+VAR_INPUT
+	Str1:T_MaxString;
+END_VAR
+VAR
+	ptByte		:POINTER TO BYTE;
+	ptDestByte	:POINTER TO BYTE;
+	Ret_String	:T_MaxString;
+	ptrRtnByte	:POINTER TO BYTE;
+	i			:INT;
+	count		:INT;
+	arrBytes		:ARRAY [0..255] OF BYTE;
+	j			:UINT;
+END_VAR
+VAR CONSTANT
+	CHAR_DOT:INT:=46;//the ascii code for '.' character
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//set the initial adress 
+ptByte:=ADR(Str1);
+ptDestByte:=ptByte;
+//reset the Array of byte 
+FOR j:=0 TO 255 DO 
+	arrBytes[j]:=0;
+END_FOR
+ptrRtnByte:=ADR(arrBytes);//set initial adress 
+
+count:=0;
+FOR i:=0 TO LEN(Str1) DO 
+	IF ptDestByte^<>0 THEN
+		//save the string
+		IF ptDestByte^=CHAR_DOT THEN //check for '.' character 
+			count:=count+1;
+		END_IF 
+		IF count>=2 THEN
+			IF count=2 AND  ptDestByte^=CHAR_DOT THEN 
+				ptDestByte:=ptDestByte+1;
+			END_IF
+			ptrRtnByte^:=ptDestByte^;//here start with Main.Fb1.variableName
+			ptrRtnByte:=ptrRtnByte+1;
+		END_IF
+		ptDestByte:=ptDestByte+1;
+	END_IF
+END_FOR
+
+GetInstanceName:=BYTEARR_TO_MAXSTRING(arrBytes);
+]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="FB_STOBER_BASE">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_STOBER_BASE.GetInstanceName">
+      <LineId Id="6" Count="27" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

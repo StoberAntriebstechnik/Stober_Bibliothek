@@ -1,0 +1,496 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.6">
+  <POU Name="STOBER_BoxName" Id="{efce901a-3fb0-4595-8e41-66ca6c9a0618}" SpecialFunc="None">
+    <Declaration><![CDATA[{attribute 'hide_all_locals'}	
+(*The function block write the STOBER Drive Device name from the EhterCAT IO Configuration 
+ to the Drive parameter over EtherCAT SDO*)
+FUNCTION_BLOCK STOBER_BoxName
+VAR_INPUT
+	AmsNetId_EtherCAT_Master:T_AmsNetID; (*AMS network identifier of the Ethercat master device*) 
+	Execute:BOOL;		 (*Activates the block by a rising edge of this input *)
+END_VAR
+VAR_OUTPUT
+	Error:BOOL;			(*Error is occured*)
+	Busy:BOOL;			(*Function block is busy*)
+	Done:BOOL;			(*Function block operation is successful*)
+	ErrorID:UDINT;		(*Error ID*)
+	FBErrorID:UDINT;	(*Function block ErrorID*)	
+END_VAR
+VAR
+
+//Initialisation
+	init:BOOL;
+	Rtrig_Init:R_trig;
+//Get Slave count method
+	_Fb_GetSlaveCount:FB_EcGetSlaveCount;
+	EC_MaxSlaves:UINT;
+//Get the AMS network id method
+	_sAmsNetID:T_AmsNetID;
+//Get the ethercat master state method
+	_FB_EcGetMasterState:FB_EcGetMasterState;
+	_bSlaveConfigData: BOOL;
+//Get slave config data 
+	_FB_EcGetConfSlaves:FB_EcGetConfSlaves;
+	_ArrEcConfSlaveInfo:ARRAY [0..GVL_Constant.MaxSlaves] OF ST_EcSlaveConfigData;
+	_nStoeberSlaves:UINT;
+//Get Slave devices 
+	_arrStoeberDevices:ARRAY [0..GVL_Constant.MaxSlaves] OF StoeberSlavedesc;
+	_StatechangeOld:ARRAY [0..GVL_Constant.MaxSlaves] OF INT;
+//SDO write and slave state
+	_FB_EcGetSlaveState:FB_EcGetSlaveState;
+	_Fb_EtherCatWritePara: FB_EcCoESdoWrite;
+	_bStatechanged:BOOL;
+	iSlaveStateold:INT:=8;
+	bAllSlaveInOpearation:BOOL;
+	_Count: INT;
+	_Ftrig:F_TRIG;
+	SlavePreviousState:INT;
+	iState:INT;
+	_iIndex:UINT;
+	_Windex:WORD;
+	_iWrite:UINT;
+//Act_SlaveStateChange
+	i: INT;
+	RS_State:RS;
+	_R_Trig_SlaveStatus:R_Trig;
+	_Execute_Trig	   :R_Trig;
+	iLastErrorState:INT;
+END_VAR
+
+
+
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[METH_StateMachine();
+_Execute_Trig(CLK:=Execute);
+METH_OutputHandle();
+
+
+]]></ST>
+    </Implementation>
+    <Method Name="METH_GetAMSID" Id="{828e3eef-1c8a-4be0-84c6-b626f6674623}">
+      <Declaration><![CDATA[{attribute 'hide'}
+METHOD METH_GetAMSID : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//Falsche AMSnetID verknüft--Wrong AMSNetID connected
+_sAmsNetID:=NetID;
+IF _sAmsNetID='' OR _sAmsNetID='0.0.0.0.0.0' THEN 
+	Error:=TRUE;
+	FBErrorID:=100; //'EtherCAT AMS ID is empty'
+	//FBErrorID:=
+	iLastErrorState:=iState;
+	iState:=100;
+ELSE	
+	iState:=iState+1;
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="METH_GetSlaveConfigData" Id="{747bcad5-e390-475c-865b-663896527aef}">
+      <Declaration><![CDATA[{attribute 'hide'}
+METHOD METH_GetSlaveConfigData : BOOL
+VAR_INPUT
+END_VAR
+VAR 
+	fRtrig:R_Trig;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_FB_EcGetConfSlaves(
+					sNetId:=_sAmsNetID , 
+					pArrEcConfSlaveInfo:=ADR(_ArrEcConfSlaveInfo) , 
+					cbBufLen:=SIZEOF(_ArrEcConfSlaveInfo) , 
+					bExecute:=TRUE 
+					);
+					
+IF NOT _FB_EcGetConfSlaves.bBusy THEN 
+	_FB_EcGetConfSlaves.bExecute:=FALSE;
+	IF _FB_EcGetConfSlaves.bError THEN 
+		ErrorID:=_FB_EcGetConfSlaves.nErrorId;
+		Error:=TRUE;
+		Busy:=FALSE;
+		iLastErrorState:=Istate;
+		iState:=100;
+	ELSE
+		iState:=iState+1;	
+	END_IF
+END_IF
+	
+
+	
+
+	
+
+
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="METH_GetSlaveCount" Id="{be1da1b3-dfae-4a4b-b17f-0c8ddb2ea5fc}">
+      <Declaration><![CDATA[{attribute 'hide'}
+METHOD METH_GetSlaveCount : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//Get all slave devices in configuration 
+//Standard beckhoff function block to get the number of slaves in the device configuration
+_Fb_GetSlaveCount(sNetId:=_sAmsNetID ,bExecute:= TRUE);
+	
+IF _Fb_GetSlaveCount.bExecute AND  NOT _Fb_GetSlaveCount.bBusy THEN 
+	_Fb_GetSlaveCount(bExecute:=FALSE);
+	IF 	_Fb_GetSlaveCount.bError THEN 
+		EC_MaxSlaves:=0;
+		Error:=TRUE;
+		ErrorID:=_Fb_GetSlaveCount.nErrId;
+		iLastErrorState:=iState;
+		iState:=100;
+	ELSE
+		Error:=FALSE;
+		EC_MaxSlaves:=_Fb_GetSlaveCount.nSlaves;
+			IF  EC_MaxSlaves> GVL_Constant.MaxSlaves THEN 
+				Error:=TRUE;
+				FBErrorID:=200;
+				Busy:=FALSE;
+				iLastErrorState:=iState;
+				iState:=100;
+			ELSE
+				iState:=iState+1;	
+			END_IF
+	END_IF
+END_IF
+//Number of actual slaves are more that defined constant]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="METH_GetSlaveDevices" Id="{2270afa3-c7fe-4d9c-8d74-d5d4d009e8bf}">
+      <Declaration><![CDATA[{attribute 'hide'}
+METHOD METH_GetSlaveDevices : BOOL
+VAR_INPUT
+END_VAR
+
+VAR
+	i:INT;
+	j:INT;
+	 //{attribute 'TcEncoding':='UTF-8'}
+	destString:STRING(79);
+END_VAR
+VAR CONSTANT 
+	_udiVendorID:UDINT:=185;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//Get Stoeber slave devices 
+IF _bSlaveConfigData THEN
+	j:=0;
+	_nStoeberSlaves:=0;
+	FOR i:=0 TO MIN(_FB_EcGetConfSlaves.nSlaves,GVL_Constant.MaxSlaves) DO 
+		IF _ArrEcConfSlaveInfo[i].stSlaveIdentity.vendorId=_udiVendorID THEN 
+		 _arrStoeberDevices[j].nAddr:=_ArrEcConfSlaveInfo[i].nAddr;
+		 _arrStoeberDevices[j].nDevType:=_ArrEcConfSlaveInfo[i].nDevType;
+		 //STRing_TO_UTF8(pSrcSTRING:=ADR(_ArrEcConfSlaveInfo[i].sName),pDstUTF8:=ADR(destString),nDstSize:=SIZEOF(destString));
+		 _arrStoeberDevices[j].sName:=_ArrEcConfSlaveInfo[i].sName;
+		  _arrStoeberDevices[j].sType:=_ArrEcConfSlaveInfo[i].sType;
+		  j:=j+1;
+		  _nStoeberSlaves:=_nStoeberSlaves+1;
+		END_IF
+	END_FOR
+	iState:=iState+1;
+END_IF		
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="METH_GetSlaveState" Id="{fd48ba1e-c562-4c40-9d85-04d257bffdb4}">
+      <Declaration><![CDATA[{attribute 'hide'}
+METHOD METH_GetSlaveState : BOOL
+VAR_INPUT
+END_VAR
+
+VAR
+	i: INT;
+	j:INT;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//change of slave state when online 
+j:=0;
+SlavePreviousState:=_FB_EcGetSlaveState.state.deviceState;	
+FOR i:=0 TO _nStoeberSlaves-1 DO 
+	_StatechangeOld[i]:=_arrStoeberDevices[i].iState;
+	_Label1:_FB_EcGetSlaveState(sNetId:=_sAmsNetID,
+						nSlaveAddr:=_arrStoeberDevices[i].nAddr,
+						bExecute:=TRUE);
+//set error 					
+	_arrStoeberDevices[i].iState:=_FB_EcGetSlaveState.state.deviceState	;	
+	IF _FB_EcGetSlaveState.bBusy THEN
+		JMP _Label1;
+	ELSE	
+		_FB_EcGetSlaveState(bExecute:=FALSE);			
+	END_IF 		
+	IF 	_StatechangeOld[i]<>_arrStoeberDevices[i].iState THEN 
+		_bStatechanged:=TRUE;
+	ELSE
+		_bStatechanged:=FALSE;	
+	END_IF 	
+	IF _arrStoeberDevices[i].iState=8 THEN 
+ 		j:=j+1;
+	END_IF
+END_FOR
+
+IF j=_nStoeberSlaves THEN 
+	bAllSlaveInOpearation:=TRUE;
+	iState:=iState+1;
+ELSE
+	bAllSlaveInOpearation:=FALSE;
+	iLastErrorState:=iState;
+	Error:=TRUE;
+	FBErrorID:=300;
+	iState:=100;
+	Busy:=FALSE;
+END_IF
+//state change  
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="METH_MasterState" Id="{7a8283b9-eb29-4a46-b8ec-684ff631c910}">
+      <Declaration><![CDATA[{attribute 'hide'}
+METHOD METH_MasterState : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_FB_EcGetMasterState(sNetId:=_sAmsNetID ,bExecute:=TRUE  );
+	
+IF NOT _FB_EcGetMasterState.bBusy THEN 
+	_FB_EcGetMasterState(bExecute:=FALSE);
+	IF _FB_EcGetMasterState.bError THEN 
+		Error:=TRUE;
+		ErrorID:=_FB_EcGetMasterState.nErrId;
+		iLastErrorState:=iState;
+		iState:=0;
+	ELSE
+		IF _FB_EcGetMasterState.state=INT_TO_WORD(Ethercat_State.PREOP)  OR 
+			_FB_EcGetMasterState.state=INT_TO_WORD(Ethercat_State.OP) THEN 
+			_bSlaveConfigData:=TRUE;
+			iState:=iState+1;
+		ELSE
+			Error:=TRUE;
+			FBErrorID:=400;
+			_bSlaveConfigData:=FALSE;
+			iState:=0;
+		END_IF
+	END_IF
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="METH_OutputHandle" Id="{03ee2159-e590-4d7d-81bf-93791424d33a}">
+      <Declaration><![CDATA[METHOD METH_OutputHandle : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[(*At a time only one variale should be true after the rise trigger of execute*)
+//if error is occured after execute
+IF Error THEN 
+	Busy:=FALSE;
+END_IF
+//reset error if no execute 
+IF Error AND NOT Execute THEN 
+	Error:=FALSE;
+	ErrorID:=0;
+	FBErrorID:=0;
+END_IF
+//Reset done if no execute
+IF Done AND NOT Execute THEN 
+	Done:=FALSE;
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="METH_SlaveStateChange" Id="{9a358241-0efc-4fe4-9036-71614c3e349b}">
+      <Declaration><![CDATA[{attribute 'hide'}
+METHOD METH_SlaveStateChange : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF FBErrorID=200 THEN 
+	RETURN;
+END_IF
+//change of slave state when online 
+SlavePreviousState:=_FB_EcGetSlaveState.state.deviceState;	
+FOR i:=0 TO _nStoeberSlaves-1 DO 
+	_StatechangeOld[i]:=_arrStoeberDevices[i].iState;
+	_label1:_FB_EcGetSlaveState(sNetId:=_sAmsNetID,
+						nSlaveAddr:=_arrStoeberDevices[i].nAddr,
+						bExecute:=TRUE);
+	//set error 					
+_arrStoeberDevices[i].iState:=_FB_EcGetSlaveState.state.deviceState	;	
+	IF 	_FB_EcGetSlaveState.bBusy THEN
+		JMP _label1;	
+	ELSE 
+		_FB_EcGetSlaveState(bExecute:=FALSE);			
+	END_IF 		
+	IF 	_StatechangeOld[i]<>_arrStoeberDevices[i].iState  THEN 
+		_bStatechanged:=TRUE;
+	ELSE
+		_bStatechanged:=FALSE;	
+	END_IF
+	//set when state is changed 
+	RS_State(SET:=_bStatechanged);
+END_FOR
+// Trigger the Function block when slave state is changed
+	_R_Trig_SlaveStatus(CLK:=RS_State.Q1);
+	RS_State(RESET1:=_R_Trig_SlaveStatus.Q);
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="METH_StateMachine" Id="{022fbfd4-47ca-48c4-9041-4fc3504d73c2}">
+      <Declaration><![CDATA[METHOD PRIVATE METH_StateMachine : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[CASE iState OF 
+//Check for the correct Ethercat AMS-NET ID 
+	0:	
+		_FB_EcGetConfSlaves(bExecute:=FALSE);
+		_Fb_EtherCatWritePara(bExecute:=FALSE);
+		IF _Execute_Trig.Q  THEN
+			Error:=FALSE;
+			Busy:=TRUE;
+			Done:=FALSE;
+			METH_GetAMSID();	
+		END_IF
+//Check the Ethercat master state 
+	1:
+		METH_MasterState();
+//Get the slaves count in the topology 	
+	2:
+		METH_GetSlaveCount();
+//Get the Ethercat slaves configuration data   	
+	3:
+		METH_GetSlaveConfigData();
+//Filter out the stoeber Slaves data from the slave configuration data  		
+	4:
+		METH_GetSlaveDevices();
+//Check the Ethercat slaves state connected in the hardware		
+	5:
+		METH_GetSlaveState();
+//Write the Stoeber device name in the Drive Parameter A251	
+	6:
+		METH_WritePararmeter();	
+//Error state 
+	100://error state 
+		//Execute:=FALSE;
+		iState:=0;
+END_CASE
+
+//Action when the slave state is changed 
+
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="METH_WritePararmeter" Id="{d417ab5c-480e-4671-8810-9b8dcb27d103}">
+      <Declaration><![CDATA[{attribute 'hide'}
+METHOD METH_WritePararmeter : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//Ethercat SDO Write  
+//calculate the index of parameter A251 refer CiA402 manual (INDEX=(8192 +(GroupNO*512)+parameterNO))
+//A251     _index:=8192+(0*512)+251;
+_iIndex:=8192+(251);
+_Windex:=UINT_TO_WORD(_iIndex);
+_iWrite:=0;
+_count:=0;
+
+_Fb_EtherCatWritePara(	sNetId:=_sAmsNetID,nIndex:=_Windex ,nSubIndex:=0);
+_FB_EcGetSlaveState(sNetId:=_sAmsNetID);						
+FOR _iWrite:=0 TO (_nStoeberSlaves-1) DO 
+		IF _arrStoeberDevices[_iwrite].iState=Ethercat_State.OP AND bAllSlaveInOpearation THEN 	
+		_label1:	_Fb_EtherCatWritePara(nSlaveAddr:=_arrStoeberDevices[_iWrite].nAddr,
+									pSrcBuf:=ADR(_arrStoeberDevices[_iWrite].sName),
+									cbBufLen:=SIZEOF(_arrStoeberDevices[_iWrite].sName),
+									bExecute:=TRUE);
+			IF _Fb_EtherCatWritePara.bBusy THEN 
+				JMP _label1;
+			ELSIF _Fb_EtherCatWritePara.bError THEN 
+				Error:=TRUE;
+				ErrorID:=_Fb_EtherCatWritePara.nErrId;
+				iState:=100;
+				Busy:=FALSE;
+			ELSE
+				_Fb_EtherCatWritePara(bExecute:=FALSE);
+				_FB_EcGetSlaveState(bExecute:=FALSE);
+				_Count:=_Count+1;	
+			END_IF
+			
+		END_IF 
+END_FOR
+	
+IF _Count>=_nStoeberSlaves AND _iWrite>=_nStoeberSlaves THEN 
+	Done:=TRUE;
+	Busy:=FALSE;
+	iState:=0;
+ELSE
+	iState:=0;
+	Error:=TRUE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="STOBER_BoxName">
+      <LineId Id="331" Count="2" />
+      <LineId Id="219" Count="0" />
+      <LineId Id="214" Count="0" />
+      <LineId Id="216" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_BoxName.METH_GetAMSID">
+      <LineId Id="33" Count="10" />
+      <LineId Id="18" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_BoxName.METH_GetSlaveConfigData">
+      <LineId Id="102" Count="21" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="39" Count="0" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="27" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_BoxName.METH_GetSlaveCount">
+      <LineId Id="73" Count="25" />
+      <LineId Id="23" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_BoxName.METH_GetSlaveDevices">
+      <LineId Id="81" Count="16" />
+      <LineId Id="49" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_BoxName.METH_GetSlaveState">
+      <LineId Id="109" Count="36" />
+      <LineId Id="25" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_BoxName.METH_MasterState">
+      <LineId Id="50" Count="21" />
+      <LineId Id="24" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_BoxName.METH_OutputHandle">
+      <LineId Id="6" Count="8" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="15" Count="4" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_BoxName.METH_SlaveStateChange">
+      <LineId Id="39" Count="27" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_BoxName.METH_StateMachine">
+      <LineId Id="45" Count="36" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_BoxName.METH_WritePararmeter">
+      <LineId Id="317" Count="38" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

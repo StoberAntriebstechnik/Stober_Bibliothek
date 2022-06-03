@@ -1,0 +1,9 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.6">
+  <GVL Name="GLOBAL_DeviceInfo" Id="{37aaf2b4-4155-4562-8a90-c481a635eadf}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+VAR_GLOBAL
+	arr_DeviceInfodata:ARRAY [1..GVL_Constant.MAX_STOBER_SLAVES] OF ST_DeviceInfo;
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

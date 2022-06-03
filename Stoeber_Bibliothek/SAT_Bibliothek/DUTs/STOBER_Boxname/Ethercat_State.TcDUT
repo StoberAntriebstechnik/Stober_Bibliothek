@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.6">
+  <DUT Name="Ethercat_State" Id="{ed2b287b-a1ab-4c33-890c-66cf80c74f41}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+{attribute 'strict'}
+{attribute 'hide'}
+TYPE Ethercat_State :
+(
+	INIT :=1,
+	PREOP:=2,
+	SAFEOP:=4,
+	OP:=8
+);
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

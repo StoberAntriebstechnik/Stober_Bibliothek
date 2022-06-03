@@ -1,0 +1,1639 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.6">
+  <POU Name="STOBER_Backup_Restore" Id="{adc18acb-fe88-42e3-8f0f-d8e3010d1715}" SpecialFunc="None">
+    <Declaration><![CDATA[{attribute 'reflection'}
+FUNCTION_BLOCK STOBER_Backup_Restore EXTENDS FB_STOBER_BASE
+VAR_INPUT
+	Execute						:BOOL;				//Activation of function block by a rise edge at this input 
+	AmsNetId_EtherCAT_Master	:T_AmsNetID;		//AMS network ID of the EtherCAT master device 
+	Filepath					:T_MAXSTRING;		//
+	DS6_ProcessPath				:T_MAXSTRING; 		//
+	Slave_addr					:UINT;				//Adress of the EtherCAT slave(Stober Drive controller)
+	Servicetype					:eSERVICE;			//Requested service Backup/restore 
+END_VAR
+VAR_OUTPUT
+	Done						:BOOL;
+	Busy						:BOOL;
+	Error						:BOOL;
+	nErrId_ADS					:UDINT;
+	nFbErrorID					:eFBERROR;
+	InitDone					:BOOL;	
+	iAction						:INT;
+END_VAR
+VAR	
+	init								:BOOL;
+	_nState_FileHandle					:INT;
+	_iState								:INT;
+	
+	_fbGetSlaveIdentity					:FB_EcGetSlaveIdentity;//Function block return EtherCAT slave identity (vendor-id,serialNr,EtherCAT revision etc)
+	_fbFileOpen							:FB_FileOpen;//Function block to open the file
+	_fbFileClose						:FB_FileClose;//Function block to close the file
+	_fbFileGets							:FB_FileGets;//Reads the file line by line
+	_fbFileWrite						:FB_FileWrite; //Function block to write the file 
+	_newFileCreated						:BOOL;
+	_fbCOESdoRead,fbSdoReadBoxName		:FB_EcCoESdoRead;//function block to read DS6 parameter over EtherCAT sdo
+	_readDriveControllerProductionNr						:STRING(16);//Produnction number of the Drive controller
+	_hFile								:UINT; //File header
+	_bEOF								:BOOL;//End of file status 
+	_Synchronous_flag  					:DWORD; //ADS return value 
+	_FbLogPersitentStorage				:FB_LogPersistentStorage;//store the log data 
+	_fbLogger							:FB_logger(_FbLogPersitentStorage);
+	_EventTrigger						:R_TRIG;
+	_ActivateNTProcess					:NT_StartProcess;
+	{attribute 'instance-path'} 
+    {attribute 'noinit'} 
+	_spath								:T_MaxString;
+	_subindex							:BYTE;
+	_oldProductionNr					:STRING;
+	 //{attribute 'TcEncoding':='UTF-8'}
+	_sBoxName							:STRING(79);
+	_sBoxNameUTF_8						:STRING;
+	_ErrorMessage						:STRING;
+	_fbTimeOut							:TON;
+	
+	_fbExecuteTrig						:R_TRIG;
+	_CommandLine						:T_MaxString;
+	_eventText							:T_MaxString;
+	_BackupRestoreTrig					:R_Trig;
+	_projectPath						:STRING;
+	_initError							:BOOL;
+	_initFbErrorID						:eFBERROR;
+	_initADSErrorID						:UDINT;
+	_ErrorState							:INT;
+	_initErrorState						:INT;
+	_deviceDescPath						:T_MaxString;
+	_fbFilepath_EnumFindFileEntry		:FB_EnumFindFileEntry;
+	_fbDS6ProcessPath_EnumFindFileEntry	:FB_EnumFindFileEntry;
+	_filepathexists						:BOOL;
+	_indexArray							:INT:=1;
+	_StoreArrayIndex					:INT;
+	_FileWriteByteArray					:ARRAY [0..MAX_BYTEARRAY_SIZE] OF BYTE;
+	_newSlave_In_Topology				:BOOL;
+	_xFirstInvocation					:BOOL;
+	_fbCreateDir						:FB_CreateDir;
+END_VAR
+
+VAR CONSTANT
+	MAX_BYTEARRAY_SIZE:INT:=4000;
+END_VAR
+
+//_prouctionNr als _readDriveControllerProductionNr]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(********************************************Method calls and initialisation of the function blocks************************************)
+(*Author--Anuj Sambhare*)
+(*log-method call*)
+(*initialise devicedescription file path *)
+_fbExecuteTrig(CLK:=Execute);
+
+IF _filepathexists THEN 
+	_FbLogPersitentStorage(sPathName:=CONCAT(Filepath,'\log\Tc_Log.log'));
+	_fbLogger();
+	_deviceDescPath:=CONCAT(Filepath,'\DeviceInfo.txt');
+END_IF
+
+(*call Outputhandle--- Function block output variables handling *)
+
+OutputHandle();
+
+(*method call to call the internal function blocks used.*)
+CallInternalFbs();
+
+(*Method call for Backup and restore execution *)
+(*
+IF NOT _initError AND  init AND _fbExecuteTrig.Q THEN 
+	init:=FALSE;
+END_IF
+*)
+
+BackupRestore();
+
+//Reinit after exectute 
+(*
+IF  _fbExecuteTrig.Q AND init THEN 
+	init:=FALSE;
+	_nState_FileHandle:=0;
+END_IF
+*)
+IF init THEN 
+	InitDone:=TRUE;
+ELSE
+	InitDone:=FALSE;	
+END_IF
+
+	
+IF NOT init THEN
+	(*Read the Production Number*) 	
+	CASE _nState_FileHandle OF 
+		0:
+			(*check if project path exits  (Als Method erstellen*)
+			_fbFilepath_EnumFindFileEntry(bExecute:=TRUE);
+			IF NOT _fbFilepath_EnumFindFileEntry.bBusy THEN 
+				IF _fbFilepath_EnumFindFileEntry.bError THEN 
+					Error:=TRUE;
+					_fbFilepath_EnumFindFileEntry(bExecute:=FALSE);
+					_initErrorState:=_nState_FileHandle;
+					_nState_FileHandle:=999;
+					_initADSErrorID:=_fbFilepath_EnumFindFileEntry.nErrID;
+				ELSIF _fbFilepath_EnumFindFileEntry.stFindFile.sFileName<> '' THEN 
+					_filepathexists:=TRUE;
+					_fbCreateDir(sNetId:='',sPathName:=CONCAT(Filepath,'\log'),ePath:=E_OpenPath.PATH_GENERIC,bExecute:=TRUE);
+					_nState_FileHandle:=1;	
+					_fbFilepath_EnumFindFileEntry(bExecute:=FALSE); 
+				ELSE 
+					_fbFilepath_EnumFindFileEntry(bExecute:=FALSE);
+					Error:=TRUE;
+					_initErrorState:=_nState_FileHandle;
+					(*fehler code 101*)
+					_initFbErrorID:=eFBERROR.WrongFilePath;
+					_nState_FileHandle:=999;	
+				END_IF
+			END_IF
+		
+		1:
+			(*check if ds6 process path (Als Method erstellen*)
+			_fbDS6ProcessPath_EnumFindFileEntry(bExecute:=TRUE);
+			IF NOT _fbDS6ProcessPath_EnumFindFileEntry.bBusy THEN 
+				IF _fbDS6ProcessPath_EnumFindFileEntry.bError THEN 
+					Error:=TRUE;
+					_fbDS6ProcessPath_EnumFindFileEntry(bExecute:=FALSE);
+					_initADSErrorID:=_fbDS6ProcessPath_EnumFindFileEntry.nErrID;
+					_initErrorState:=_nState_FileHandle;
+					_nState_FileHandle:=999;
+				ELSIF _fbDS6ProcessPath_EnumFindFileEntry.stFindFile.sFileName<> '' THEN 
+					_nState_FileHandle:=2;	
+					_fbDS6ProcessPath_EnumFindFileEntry(bExecute:=FALSE); 
+				ELSE 
+					_fbDS6ProcessPath_EnumFindFileEntry(bExecute:=FALSE);
+					Error:=TRUE;
+					_initErrorState:=_nState_FileHandle;
+					(*Fehler code 103*)
+					_initFbErrorID:=eFBERROR.WrongDS6_ProcessPath;
+					_nState_FileHandle:=999;	
+				END_IF
+			END_IF
+	
+		2:(*Read EtherCAT slave identity revision*) 
+		  (*later on change with FB_EcGetSlaveIdentity, no dependancy on EtherCAT states*)
+		  (*This case is only programmed in order to get the ethercat revision number because at the moment the production number
+		    of the drive controller is not saved in the EEPROM.*) 
+			_EventTrigger(CLK:=FALSE);
+			_fbGetSlaveIdentity(sNetId:=AmsNetId_EtherCAT_Master,nSlaveAddr:=Slave_addr,
+								bExecute:=TRUE);
+			IF NOT _fbGetSlaveIdentity.bBusy THEN 
+				IF _fbGetSlaveIdentity.bError THEN 
+					_fbGetSlaveIdentity(bExecute:=FALSE);	
+						_initADSErrorID:=_fbGetSlaveIdentity.nErrId;
+						Error:=TRUE;
+						_initErrorState:=_nState_FileHandle;
+						_ErrorMessage:=CONCAT4(STR1:=GetInstanceName(_spath),STR2:=' ',STR3:='GetSlaveIdentity ADS Error ',STR4:=TO_STRING(_initADSErrorID));
+						_nState_FileHandle:=999;
+				ELSE
+					_fbGetSlaveIdentity(bExecute:=FALSE);
+					IF _fbGetSlaveIdentity.identity.revisionNo=6500 THEN 
+						_subindex:=16#3;
+						_nState_FileHandle:=3;
+					ELSIF _fbGetSlaveIdentity.identity.revisionNo=6000 THEN 
+						_subindex:=16#3;
+						_nState_FileHandle:=3;
+					ELSIF _fbGetSlaveIdentity.identity.revisionNo=6100 THEN 
+						_subindex:=16#2;
+						_nState_FileHandle:=3;	
+					ELSE
+						Error:=TRUE;
+						_ErrorMessage:='Wrong etherCAT template revision.';
+						_initErrorState:=_nState_FileHandle;
+						(*Fehler code 105*)
+						_initFbErrorID:=eFBERROR.WrongEtherCATRevision;
+						_nState_FileHandle:=999;	
+					END_IF
+				END_IF
+			END_IF					
+	
+		3:
+			(*read the production number index number for parameter E52[2](Production number)=16#2834*) 			
+			_fbCOESdoRead(sNetId:=AmsNetId_EtherCAT_Master,nSlaveAddr:=Slave_addr ,nSubIndex:=_subindex,nIndex:=16#2834 , 
+						pDstBuf:=ADR(_readDriveControllerProductionNr),cbBufLen:=SIZEOF(_readDriveControllerProductionNr) ,bExecute:=TRUE );
+			IF NOT _fbCOESdoRead.bBusy THEN 
+				IF _fbCOESdoRead.bError THEN 
+					_ErrorMessage:='';
+					_fbCOESdoRead(bExecute:=FALSE);
+					_initADSErrorID:=_fbCOESdoRead.nErrId;
+					_ErrorMessage:=CONCAT4(STR1:=GetInstanceName(_spath),STR2:=' ',STR3:='EtherCAT Sdo Read  ADS Error ',STR4:=TO_STRING(_initADSErrorID));
+					Error:=TRUE;(*Generate log*) 
+					_initErrorState:=_nState_FileHandle;
+					_nState_FileHandle:=999;
+				ELSE
+					_fbCOESdoRead(bExecute:=FALSE);	
+					_nState_FileHandle:=4;
+				END_IF
+			END_IF
+			
+		4:
+			_indexArray:=1;
+			_nState_FileHandle:=5;
+			
+			
+		5:	(*check if file exists*) 
+			(*if file doesnt exist in the directory then Function block will show 1804 error*) 
+			_fbFileOpen(sNetId:='' ,sPathName:=_deviceDescPath ,nMode:=FOPEN_MODEREAD ,ePath:=PATH_GENERIC ,bExecute:=TRUE , hFile=>_hFile );
+			IF NOT _fbFileOpen.bBusy THEN 
+				IF (_hFile=0 AND _fbFileOpen.nErrId=1804) THEN (*Error 1804 comes when file is in read mode and the file does not exist project folder*)				 
+					_fbFileOpen(sNetId:='',bExecute:=FALSE);
+					_nState_FileHandle:=6;(*Go to state 6 to create a new file*)
+			    ELSIF (_fbFileOpen.nErrId<>1804 AND _fbFileOpen.bError) THEN
+					_fbFileOpen(sNetId:='',bExecute:=FALSE);
+					_ErrorMessage:='';
+					Error:=TRUE;
+					_initErrorState:=_nState_FileHandle;
+					_initADSErrorID:=_fbFileOpen.nErrId;
+					_ErrorMessage:=CONCAT4(STR1:=GetInstanceName(_spath),STR2:=' ',STR3:='File open ADS Error ',STR4:=TO_STRING(_initADSErrorID));
+					_nState_FileHandle:=999;(*Generate log*) 
+				ELSE (*File already exist go to step 50 to read the production number *)
+					_fbFileOpen(sNetId:='',bExecute:=FALSE);
+					_nState_FileHandle:=50;
+				END_IF	
+			END_IF
+			
+		6:(*create new deviceinfo.txt file*) 
+			_fbFileOpen(sNetId:='',sPathName:=_deviceDescPath ,nMode:=FOPEN_MODEAPPEND OR FOPEN_MODETEXT ,ePath:=PATH_GENERIC ,bExecute:=TRUE , hFile=>_hFile );
+			IF NOT _fbFileOpen.bBusy THEN 
+				IF _fbFileOpen.bError THEN 
+					_ErrorMessage:='';
+					_fbFileOpen(sNetId:='',bExecute:=FALSE);
+					Error:=TRUE;(*Generate log*) 
+					_initErrorState:=_nState_FileHandle;
+					_initADSErrorID:=_fbFileOpen.nErrId;
+					_ErrorMessage:=CONCAT4(STR1:=GetInstanceName(_spath),STR2:=' ',STR3:='File Open ADS Error ',STR4:=TO_STRING(_initADSErrorID));
+					_nState_FileHandle:=999;
+				ELSE
+					_fbFileOpen(sNetId:='',bExecute:=FALSE);
+					_nState_FileHandle:=7;	
+				END_IF
+			END_IF
+			
+		7:(*close the file without inserting the data*) 
+			_fbFileClose(sNetId:='',hFile:=_hFile,bExecute:=TRUE);
+			IF NOT _fbFileClose.bBusy THEN 
+				IF _fbFileClose.bError THEN 
+					Error:=TRUE;
+					_initErrorState:=_nState_FileHandle;
+					_initADSErrorID:=_fbFileClose.nErrId;
+					_ErrorMessage:=CONCAT4(STR1:=GetInstanceName(_spath),
+									STR2:=' ',STR3:='File close ADS Error ',STR4:=TO_STRING(_initADSErrorID));
+					_fbFileClose(sNetId:='',bExecute:=FALSE);					
+					_nState_FileHandle:=999;
+				ELSE
+					_fbFileClose(sNetId:='',bExecute:=FALSE);	
+					_nState_FileHandle:=30;
+					iAction:=2;
+				END_IF
+			END_IF
+		
+		30:(*New file DeviceInfo.txt is created in the filepath directory*)
+			_newFileCreated:=TRUE;
+			init:=TRUE;
+			
+		50:(*Open deviceinfo.txt file*)
+			_newFileCreated:=FALSE;
+			 _fbFileOpen(sNetId:='' ,sPathName:=_deviceDescPath ,nMode:=FOPEN_MODEREAD OR FOPEN_MODETEXT,
+						ePath:=PATH_GENERIC,bExecute:=TRUE,hFile=>_hFile);
+					
+			IF NOT _fbFileOpen.bBusy THEN 
+				IF _fbFileOpen.bError THEN 
+					_fbFileOpen(sNetId:='',bExecute:=FALSE);
+					_initADSErrorID:=_fbFileOpen.nErrId;
+					_ErrorMessage:=CONCAT4(STR1:=GetInstanceName(_spath),STR2:=' ',
+											STR3:='ADS Error ',STR4:=TO_STRING(_initADSErrorID));
+					Error:=TRUE;
+					_initErrorState:=_nState_FileHandle;
+					_nState_FileHandle:=999;
+				ELSE
+					_fbFileOpen(sNetId:='',bExecute:=FALSE);
+					_nState_FileHandle:=60;
+				END_IF
+			END_IF
+			
+		 60:(*Read the file line by line*)	
+			_fbFileGets(sNetId:='',bExecute:=TRUE,hFile:=_hFile,bEOF=>_bEOF);
+			IF NOT _fbFileGets.bBusy THEN 
+				IF _fbFileGets.bError THEN 
+					Error:=TRUE;
+					_initErrorState:=_nState_FileHandle;
+					_initADSErrorID:=_fbFileGets.nErrId;
+					_ErrorMessage:=CONCAT4(STR1:=GetInstanceName(_spath),STR2:=' ',
+										   STR3:='File readline ADS Error ',STR4:=TO_STRING(_initADSErrorID));
+					_fbFileGets(bExecute:=FALSE);
+					_nState_FileHandle:=999;
+				ELSE
+					_fbFileGets(sNetId:='',bExecute:=FALSE);
+					_nState_FileHandle:=70;
+				END_IF
+			END_IF
+		
+			
+		70:
+			IF _indexArray<GVL_Constant.MAX_STOBER_SLAVES THEN 
+				IF NOT _bEOF THEN  		
+					GLOBAL_DeviceInfo.arr_DeviceInfodata[_indexArray].Slave_Address:=GetSlaveAddress(Str1:=_fbFileGets.sLine);
+					GLOBAL_DeviceInfo.arr_DeviceInfodata[_indexArray].Production_Number:=GetProductionNumber(Str1:=_fbFileGets.sLine);
+					_indexArray:=_indexArray+1;
+					_nState_FileHandle:=60;
+			    ELSE
+						_nState_FileHandle:=80;	
+				END_IF	
+			END_IF
+		
+			
+			
+		80:	(*Prepare array data*)
+			FOR _indexArray:=1 TO GVL_Constant.MAX_STOBER_SLAVES DO 
+				IF GLOBAL_DeviceInfo.arr_DeviceInfodata[_indexArray].Slave_Address=TO_STRING(Slave_addr) THEN
+					    (*compare the production number*)
+						_newSlave_In_Topology:=FALSE;
+						IF TO_STRING(GLOBAL_DeviceInfo.arr_DeviceInfodata[_indexArray].Production_Number)=_readDriveControllerProductionNr THEN 
+							iAction:=0;
+							_nState_FileHandle:=90;
+						ELSE
+							iAction:=2;
+							_nState_FileHandle:=100;
+						END_IF
+					EXIT;	
+				END_IF
+				IF _indexArray>=GVL_Constant.MAX_STOBER_SLAVES THEN 
+					iAction:=2;
+					_newSlave_In_Topology:=TRUE;
+					_nState_FileHandle:=140;	
+				END_IF
+			END_FOR
+			
+		90:(*Production number exists ready for backup close the file*)
+			_fbFileClose(sNetId:='',hFile:=_hFile,bExecute:=TRUE);
+			IF NOT _fbFileClose.bBusy THEN 
+				IF _fbFileClose.bError THEN 
+					_initADSErrorID:=_fbFileClose.nErrId;
+					_ErrorMessage:=CONCAT4(STR1:=GetInstanceName(_spath),STR2:=' ',
+											STR3:='File close ADS Error ',STR4:=TO_STRING(_initADSErrorID));
+					Error:=TRUE;
+					_initErrorState:=_nState_FileHandle;
+					_fbFileClose(sNetId:='',bExecute:=FALSE);	
+					_nState_FileHandle:=999;
+				ELSE
+					_fbFileClose(sNetId:='',bExecute:=FALSE);	
+					_nState_FileHandle:=140;
+				END_IF
+			END_IF
+		
+		100:(*Close the deviceinfo.txt file first if production nr does not exist*)
+			iAction:=2;	(*Restore is needed *)
+			_fbFileClose(sNetId:='',hFile:=_hFile,bExecute:=TRUE);
+			IF NOT _fbFileClose.bBusy THEN 
+				IF _fbFileClose.bError THEN 
+					_initADSErrorID:=_fbFileClose.nErrId;
+					_ErrorMessage:=CONCAT4(STR1:=GetInstanceName(_spath),STR2:=' ',
+											STR3:='File close ADS Error ',STR4:=TO_STRING(_initADSErrorID));
+					Error:=TRUE;
+					_initErrorState:=_nState_FileHandle;
+					_fbFileClose(sNetId:='',bExecute:=FALSE);	
+					_nState_FileHandle:=999;
+				ELSE
+					_fbFileClose(sNetId:='',bExecute:=FALSE);	
+					_nState_FileHandle:=140;
+				END_IF
+			END_IF
+			
+			
+		140:(*Production number and slave address does not exit*)
+			init:=TRUE;	
+			
+		300:(*Production number already exists*)			
+			init:=TRUE;
+			
+		999:(*Error case*)
+			 _initError:=TRUE;
+			 Error:=_initError;
+			 _EventTrigger(CLK:=TRUE);
+			IF _EventTrigger.Q THEN 
+				_fbLogger.AddEvent(sEventText:=_ErrorMessage,EventType:='Error');
+			END_IF		
+			init:=TRUE;		
+	END_CASE
+END_IF
+
+
+]]></ST>
+    </Implementation>
+    <Method Name="ActivateProcess" Id="{b7582f03-cc18-4fd5-b7a9-d79d04076ac0}">
+      <Declaration><![CDATA[(*Method Activate the subprocess*)
+METHOD PRIVATE ActivateProcess : BOOL
+
+VAR
+	_fbWaitTimer:TON;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[(*Method activates the NT_StartProcess function block to start a Drive Control Suite application with a commandline for project read or write*)
+(*Start DS6 applicationfrom TwinCAT
+Commandline=> DS6.exe --command <command> --boxname <Boxname> --productionnumber <number> --projectpath <path> --instancename <name>
+*) 
+ _ActivateNTProcess(START:=TRUE);
+
+IF NOT _ActivateNTProcess.BUSY THEN 
+	IF _ActivateNTProcess.ERR THEN 
+		Error:=TRUE;
+		_ErrorState:=_iState;
+		nErrId_ADS:=_ActivateNTProcess.ERRID;
+		_eventText:=Concat4(STR1:=GetInstanceName(_spath),STR2:=' ',STR3:='NTProcess ADS Error ',STR4:=TO_STRING(nErrId_ADS));
+		_EventTrigger(CLK:=TRUE);		
+		IF _EventTrigger.Q THEN 
+			_fbLogger.AddEvent(sEventText:=_eventText,EventType:='Error');
+			_EventTrigger(CLK:=FALSE);	
+		END_IF	
+		_ActivateNTProcess(START:=FALSE);
+		_iState:=99;						
+	ELSE
+		_ActivateNTProcess(START:=FALSE);
+		_iState:=_iState+1;							
+	END_IF							
+END_IF
+
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="BackupRestore" Id="{89543a51-9f6d-4bd9-97ad-1ed97fc38a30}">
+      <Declaration><![CDATA[METHOD PRIVATE BackupRestore : BOOL
+VAR
+	i: INT;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+_fbTimeOut(PT:=SetTimeout());
+
+
+CASE _iState OF
+ 
+	0://Execute 	
+		IF _fbExecuteTrig.Q  THEN 
+			busy:=TRUE;
+			Done:=FALSE;
+			_Synchronous_flag:=0;
+			Error:=FALSE;
+			
+			nErrId_ADS:=0;
+			nFbErrorID:=0;
+			_ErrorMessage:='';
+			_fbTimeOut.IN:=FALSE;
+			_EventTrigger(CLK:=FALSE);
+			_BackupRestoreTrig(CLK:=FALSE);
+			_nState_FileHandle:=0;
+			init:=FALSE;			
+			_iState:=_iState+1;
+			_ErrorState:=0;
+			
+		END_IF
+	
+	
+	1:
+		(*
+		IF NOT _initError AND init  THEN
+			InitDone:=TRUE; 
+			 _iState:=_iState+1;
+		END_IF
+		*)	 
+		IF init THEN 
+			IF NOT _initError THEN
+				InitDone:=TRUE;
+				_iState:=_iState+1;	 
+			ELSE
+				Error:=TRUE;
+				InitDone:=FALSE;
+				_ErrorState:=_iState;
+				nErrId_ADS:=_initADSErrorID;
+				nFbErrorID:=_initFbErrorID;
+				_initError:=FALSE;
+				_iState:=0;		
+			END_IF
+		END_IF
+
+	2:	
+		 _iState:=_iState+1;
+		
+	3://Boxname
+		GetBoxName();	
+	
+	4://Check the posibility of backup and restore 
+		_EventTrigger(CLK:=TRUE);
+		IF _EventTrigger.Q THEN 
+			IF iAction=2 AND Servicetype=eSERVICE.Restore THEN 
+				// File log restore action started
+				_eventText:=CONCAT(CONCAT('Restore action of ',_sBoxName), ' is started');
+				
+			ELSIF iAction=0 AND (Servicetype=eSERVICE.Backup OR Servicetype=eSERVICE.Backup_RevDocu) THEN 
+				_eventText:=CONCAT(CONCAT('Backup action of ',_sBoxName), ' is started');
+			ELSE
+				//error if action is restore action is shown and backup service is chosen by user and vice versa 
+				_eventText:=CONCAT(_sBoxName, ' Read or write not possible, choose Service input according to iAction');
+				 Error:=TRUE;
+				 //Fehler code
+				 nFbErrorID:=eFBERROR.WrongServiceTypeInput;
+				 _ErrorState:=_iState;
+			END_IF
+			IF NOT Error THEN 
+				_fbLogger.AddEvent(sEventText:=_eventText,EventType:='Info');
+				_EventTrigger(CLK:=FALSE);	
+				Error:=FALSE;
+				_iState:=_iState+1;
+			ELSE
+				_fbLogger.AddEvent(sEventText:=_eventText,EventType:='Warning');
+				_EventTrigger(CLK:=FALSE);	
+				_iState:=0;
+			END_IF
+		END_IF	
+	
+	5://set call statement before activation of process 
+		//TO-DO depending on the serviceType from user and iAction output set the commandline if there is a mismatch then log message 
+		//Backup the project 
+		IF Servicetype=eSERVICE.Backup THEN
+			 _CommandLine:=GetCommandString();
+			//Restore the project 
+		ELSIF Servicetype=eSERVICE.Restore THEN 
+			_CommandLine:=GetCommandString();
+			//backup with reverse documentation 
+		ELSIF Servicetype=eSERVICE.Backup_RevDocu THEN 
+			_CommandLine:=GetCommandString();
+		ELSE
+			_CommandLine:='';	
+		END_IF
+		_iState:=_iState+1;
+		
+	6://Activate Process
+		 ActivateProcess(); 
+		
+	
+	7://Wait for Receiving flags or start monitoring timeout 
+		_fbTimeOut.IN:=TRUE;
+		IF NOT Done AND _fbTimeOut.Q THEN 
+			Error:=TRUE;//Timeout
+			_ErrorState:=_iState;
+			 nFbErrorID:=eFBERROR.TimeoutExceed;
+			_fbTimeOut.IN:=FALSE;
+			//Event trigger 
+			_ErrorMessage:=CONCAT4(STR1:=GetInstanceName(_spath),STR2:=' ',STR3:='Timeout ',STR4:='No Backup or restore posssible');
+			_BackupRestoreTrig(CLK:=TRUE);
+			IF _BackupRestoreTrig.Q THEN 
+			_fbLogger.AddEvent(sEventText:=_ErrorMessage,EventType:='Error');
+			_BackupRestoreTrig(CLK:=FALSE);				
+			END_IF			
+			_iState:=99;					
+		ELSIF SynchronousFlagHandle(SynchronousValue:=TO_INT(_Synchronous_flag))=1 THEN 
+				//Receive flag is high backup or restore is successful  
+				_iState:=_iState+1;
+		ELSIF SynchronousFlagHandle(SynchronousValue:=TO_INT(_Synchronous_flag))>1 THEN 
+				Error:=TRUE;
+				//error codes are handled in methods 
+				_iState:=99;					
+		END_IF	
+
+	8:
+		  IF iAction=2 AND Servicetype=eSERVICE.Restore THEN 
+				_iState:=_iState+1;
+		  ELSIF iAction=0 AND  (Servicetype=eSERVICE.Backup OR Servicetype=eSERVICE.Backup_RevDocu) THEN
+				//log the file with backup successful
+ 				_eventText:=CONCAT(_sBoxName,' project backup successful');
+				_BackupRestoreTrig(CLK:=TRUE);
+				IF _BackupRestoreTrig.Q THEN 
+					_fbLogger.AddEvent(sEventText:=_eventText,EventType:='Info');
+					_BackupRestoreTrig(CLK:=FALSE);
+				END_IF			
+ 				Done:=TRUE;
+				_xFirstInvocation:=TRUE;
+				Busy:=FALSE;
+				_iState:=0;	
+			END_IF
+		
+	9:(*when new slave address is added to the topology add entry in the Deviceinfo structure*)
+		IF _newSlave_In_Topology  OR (_newFileCreated OR _nState_FileHandle=30)  THEN 
+			(*Add new entry in the deviceinfo structure*)
+			FOR i:=1 TO GVL_Constant.MAX_STOBER_SLAVES DO 
+				IF GLOBAL_DeviceInfo.arr_DeviceInfodata[i].Slave_Address='' AND 
+					GLOBAL_DeviceInfo.arr_DeviceInfodata[i].Production_Number='' THEN
+					GLOBAL_DeviceInfo.arr_DeviceInfodata[i].Slave_Address:=TO_STRING(Slave_addr);
+					GLOBAL_DeviceInfo.arr_DeviceInfodata[i].Production_Number:=_readDriveControllerProductionNr;
+					_istate:=11;
+					EXIT;
+				END_IF	
+			END_FOR
+		ELSE
+            _iState:=_istate+1;	
+		END_IF
+			
+	10:(*Replace the production number in the deviceinfo structure array*)
+		FOR _indexArray:=1 TO GVL_Constant.MAX_STOBER_SLAVES DO 
+			IF GLOBAL_DeviceInfo.arr_DeviceInfodata[_indexArray].Slave_Address=TO_STRING(Slave_addr) THEN
+				_oldProductionNr:=GLOBAL_DeviceInfo.arr_DeviceInfodata[_indexArray].Production_Number;
+				GLOBAL_DeviceInfo.arr_DeviceInfodata[_indexArray].Production_Number:=_readDriveControllerProductionNr;
+				_iState:=_iState+1;
+				EXIT;
+			END_IF
+		END_FOR
+		
+	11:(*Prepare data*)	
+		PrepareFileWriteData();
+		
+	12:(*Store the production number in the file*) 	
+		(*open file in write mode and store the deviceinfo data structure array in file*) 
+		_fbFileOpen(sNetId:='',sPathName:=_deviceDescPath ,nMode:=FOPEN_MODEWRITE OR FOPEN_MODETEXT ,ePath:=PATH_GENERIC ,bExecute:=TRUE , hFile=>_hFile );
+			IF NOT _fbFileOpen.bBusy THEN 
+				IF _fbFileOpen.bError THEN 
+					_fbFileOpen(sNetId:='',bExecute:=FALSE);
+					nErrId_ADS:=_fbFileOpen.nErrId;
+					_ErrorMessage:=CONCAT4(STR1:=GetInstanceName(_spath),STR2:=' ',STR3:='ADS Error ',STR4:=TO_STRING(nErrId_ADS));
+					Error:=TRUE;//Generate log 
+					_ErrorState:=_iState;
+					_fbFileOpen(sNetId:='',bExecute:=FALSE);
+					_iState:=99;
+				ELSE
+					_fbFileOpen(sNetId:='',bExecute:=FALSE);
+					_iState:=_iState+1;
+				END_IF
+			END_IF
+	
+	13:(*File write*)
+		_fbFileWrite(sNetId:='',hFile:=_hFile,pWriteBuff:=ADR(_FileWriteByteArray),cbWriteLen:=GetSizeofFileWriteData(),bExecute:=TRUE,tTimeout:=T#5S );
+		IF NOT _fbFileWrite.bBusy THEN 
+				IF _fbFileWrite.bError THEN 
+					_fbFileWrite(sNetId:='',bExecute:=FALSE);
+					nErrId_ADS:=_fbFileWrite.nErrId;
+					_ErrorMessage:=CONCAT4(STR1:=GetInstanceName(_spath),STR2:=' ',STR3:='ADS Error ',STR4:=TO_STRING(nErrId_ADS));
+					Error:=TRUE;(*Generate log*) 
+					_ErrorState:=_iState;
+					_fbFileWrite(sNetId:='',bExecute:=FALSE);
+					_iState:=99;
+				ELSE
+					_fbFileWrite(sNetId:='',bExecute:=FALSE);
+					_iState:=_iState+1;
+				END_IF
+		END_IF
+		
+	14:(*close the file*)
+			_fbFileClose(sNetId:='',hFile:=_hFile,bExecute:=TRUE);
+			IF NOT _fbFileClose.bBusy THEN 
+				IF _fbFileClose.bError THEN 
+					nErrId_ADS:=_fbFileClose.nErrId;
+					Error:=TRUE;
+					_ErrorState:=_iState;
+					_ErrorMessage:=CONCAT4(STR1:=GetInstanceName(_spath),STR2:=' ',STR3:='ADS Error ',STR4:=TO_STRING(nErrId_ADS));
+					_fbFileClose(sNetId:='',bExecute:=FALSE);
+					_iState:=99;
+				ELSE
+					_fbFileClose(sNetId:='',bExecute:=FALSE);	
+					_iState:=_iState+1;
+				END_IF
+			END_IF
+	 	
+	15:(*new Production number is added*)
+			_EventTrigger(CLK:=TRUE);
+			IF iAction=2 THEN
+				IF _oldProductionNr='' THEN 
+					_eventText:=CONCAT8('New Slave ',TO_STRING(Slave_addr),' ', _sBoxName, ' with Prod.Nr. ', _readDriveControllerProductionNr ,' is added','');
+				ELSE
+					_eventText:=CONCAT8('Restore is successful ','Prod.Nr. ',_oldProductionNr,' is replaced with Prod.Nr. ',_readDriveControllerProductionNr, '','','');
+				END_IF
+				IF _EventTrigger.Q THEN 
+					_fbLogger.AddEvent(sEventText:=_eventText,EventType:='Info');
+					Done:=TRUE;
+					_xFirstInvocation:=TRUE;
+					Busy:=FALSE;	
+					iAction:=0;	
+					_iState:=0;		
+				END_IF
+			ELSIF iAction=0 THEN 
+				Done:=TRUE;
+				_xFirstInvocation:=TRUE;
+				Busy:=FALSE;
+				_iState:=0;	
+			END_IF	
+	
+	99:(*Trigger event*) 	
+		Error:=TRUE;
+		_iState:=0;	
+		
+		
+ELSE
+		_iState:=0;
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="CallInternalFbs" Id="{1371c699-2773-4efe-bbd0-ccd589e5947e}">
+      <Declaration><![CDATA[METHOD PRIVATE CallInternalFbs : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[(*function block to check the file directory if exist*) 
+	(*Project file path*) 
+_fbFilepath_EnumFindFileEntry(sNetId:='' ,sPathName:=Filepath , eCmd:=E_EnumCmdType.eEnumCmd_First );
+	(*DS6 process path*) 
+_fbDS6ProcessPath_EnumFindFileEntry(sNetId:='' ,sPathName:=DS6_ProcessPath , eCmd:=E_EnumCmdType.eEnumCmd_First );
+
+(*read boxname from the drive controller parameter A251*)
+fbSdoReadBoxName(
+				 sNetId:=AmsNetId_EtherCAT_Master , 
+				 nSlaveAddr:=Slave_addr , 
+				 nSubIndex:=16#0 , 
+				 nIndex:=16#20FB , 
+				 pDstBuf:=ADR(_sBoxName) , 
+				 cbBufLen:=SIZEOF(_sBoxName)
+				);
+
+			
+
+//Commandline later change with GetCommandString method 
+(*_ActivateNTProcess(NETID:='' ,PATHSTR:='C:\Windows\py.exe' , 
+            	   DIRNAME:='C:\Windows' , COMNDLINE:=Commandline);	*)			
+
+//Activate the process				   
+_ActivateNTProcess(NETID:='' ,PATHSTR:=CONCAT(DS6_ProcessPath,'\DS6A.exe') , 
+            	   DIRNAME:=DS6_ProcessPath , COMNDLINE:=GetCommandString());	]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="GetADSPort" Id="{78a18f71-3134-416c-8570-8ad25517cb20}">
+      <Declaration><![CDATA[METHOD PRIVATE GetADSPort : UINT
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[GetADSPort:=TwinCAT_SystemInfoVarList._AppInfo.AdsPort;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="GetBoxName" Id="{2919a01c-f17d-4058-82b0-143498de4018}">
+      <Declaration><![CDATA[(*The method reads the Boxname of the Stober Slave device*)
+METHOD PRIVATE GetBoxName : BOOL
+
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//execute the function block fbSdoReadBoxName function block body is called in CallInternalFBs
+fbSdoReadBoxName(bExecute:=TRUE);				
+ 			 
+//TO-DO error check 
+IF NOT fbSdoReadBoxName.bBusy THEN 
+	
+	IF fbSdoReadBoxName.bError THEN 
+		Error:=TRUE;
+		_ErrorState:=_iState;
+		nErrId_ADS:=fbSdoReadBoxName.nErrId;
+		fbSdoReadBoxName(bExecute:=FALSE);	
+		_ErrorMessage:=Concat4(STR1:=GetInstanceName(_spath),STR2:=' ',STR3:='Boxname SDOread ADS Error ',STR4:=TO_STRING(nErrId_ADS));
+		_BackupRestoreTrig(CLK:=TRUE);
+		IF _BackupRestoreTrig.Q THEN 
+			_fbLogger.AddEvent(sEventText:=_ErrorMessage,EventType:='Error');
+			_BackupRestoreTrig(CLK:=FALSE);
+		END_IF
+		_iState:=99;	
+		RETURN;
+	END_IF
+	//Check if BoxName is an empty string 
+	IF _sBoxName='' THEN 
+		Error:=TRUE;
+		//Fehler code 107
+		nFbErrorID:=eFBERROR.InvalidBoxname;
+		_ErrorState:=_iState;
+		_ErrorMessage:=Concat4(STR1:=GetInstanceName(_spath),STR2:=' ',STR3:='BoxName is empty ',STR4:='Boxname function block is not executed');
+		fbSdoReadBoxName(bExecute:=FALSE);			
+		_BackupRestoreTrig(CLK:=TRUE);
+		IF _BackupRestoreTrig.Q THEN 
+			_fbLogger.AddEvent(sEventText:=_ErrorMessage,EventType:='Error');
+			_BackupRestoreTrig(CLK:=FALSE);
+		END_IF
+		_iState:=99;
+	ELSE
+		fbSdoReadBoxName(bExecute:=FALSE);	
+		//STRING_TO_UTF8(pSrcSTRING:=ADR(_sBoxName),pDstUTF8:=ADR(_sBoxNameUTF_8),nDstSize:=SIZEOF(_sBoxNameUTF_8));
+		_iState:=_iState+1;	
+	END_IF
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="GetCommandString" Id="{60930a91-0bca-4d8d-a442-a2fb3249baf5}">
+      <Declaration><![CDATA[(*Method returns a commandline which is then used to send the DriveControlSuite application for the read or write of the project*)
+METHOD PROTECTED GetCommandString : T_MaxString
+
+VAR
+	 {attribute 'TcEncoding':='UTF-8'}
+	_CommandString:T_MaxString;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[(*Start DS6 applicationfrom TwinCAT
+Commandline=> DS6.exe -command <command> --boxname <Boxname> --productionnumber <number> --projectpath <path> --instancename <name>
+*)
+_projectPath:=Filepath;
+IF Servicetype=eSERVICE.Backup THEN 
+	_CommandString:=CONCAT4(STR1:=CONCAT4(STR1:=CONCAT8(
+							STR1:='DS6A.exe ' , 
+							STR2:='--command ' , 
+							STR3:='backup ' , 
+							STR4:='--boxname ' , 
+							STR5:= concat('"', concat( _sBoxName,'"')) , 
+							STR6:=' --productionnumber ' , 
+							STR7:=_readDriveControllerProductionNr , 
+							STR8:=' --projectpath ' ),
+							STR2:=CONCAT('"',CONCAT(_projectPath,'"')),
+							STR3:=' --instancename ',
+							STR4:=SUPER^.GetInstanceName(_spath)	),
+							STR2:='',STR3:='',STR4:='');
+							
+							
+ELSIF Servicetype=eSERVICE.Backup_RevDocu THEN 
+	_CommandString:=CONCAT4(STR1:=CONCAT4(STR1:=CONCAT8(
+							STR1:='DS6A.exe ' , 
+							STR2:='--command ' , 
+							STR3:='backup_revdocu ' , 
+							STR4:='--boxname ' , 
+							STR5:= concat('"', concat( _sBoxName,'"')) , 
+							STR6:=' --productionnumber ' , 
+							STR7:=_readDriveControllerProductionNr , 
+							STR8:=' --projectpath ' ),
+							STR2:=CONCAT('"',CONCAT(_projectPath,'"')),
+							STR3:=' --instancename ',
+							STR4:=SUPER^.GetInstanceName(_spath)	),
+							STR2:='',STR3:='',STR4:='');
+							
+							
+ELSIF Servicetype=eSERVICE.Restore THEN 
+	_CommandString:=CONCAT4(STR1:=CONCAT4(STR1:=CONCAT8(
+							STR1:='DS6A.exe ' , 
+							STR2:='--command ' , 
+							STR3:='restore ' , 
+							STR4:='--boxname ' , 
+							STR5:= concat('"', concat(_sBoxName ,'"')) ,
+							STR6:=' --productionnumber ' , 
+							STR7:=_readDriveControllerProductionNr , 
+							STR8:=' --projectpath ' ),
+							STR2:=CONCAT('"',CONCAT(_projectPath,'"')),
+							STR3:=' --instancename ',
+							STR4:=SUPER^.GetInstanceName(_spath)),
+							STR2:='',STR3:='',STR4:='');
+END_IF	
+
+//Return commandstring 
+GetCommandString:=_CommandString;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="GetProductionNumber" Id="{3e95a018-64db-4404-ac84-34ac0a81ceca}">
+      <Declaration><![CDATA[(*method to get the production number from the linetext of the Deviceinfo.txt file*)
+METHOD PRIVATE GetProductionNumber : String
+VAR_INPUT
+	Str1	:STRING;
+END_VAR
+VAR
+	ptByte		:POINTER TO BYTE;
+	ptDestByte	:POINTER TO BYTE;
+	ptrRtnByte	:POINTER TO BYTE;
+	i			:INT;
+	count		:INT;
+	arrByte		:ARRAY [0..255] OF BYTE;
+	j			:UINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//set the initial adress 
+ptByte:=ADR(Str1);
+ptDestByte:=ptByte;
+//reset the Array of byte 
+FOR j:=0 TO 255 DO 
+	arrByte[j]:=0;
+END_FOR
+ptrRtnByte:=ADR(arrByte);//set initial adress 
+
+count:=0;
+FOR i:=0 TO LEN(Str1) DO 
+	IF ptDestByte^<>0 THEN
+		//save the string
+		IF ptDestByte^=58 THEN  //check for ':' character 
+			count:=count+1;
+		END_IF 
+		IF count>=2 THEN
+			IF count=2 AND  ptDestByte^=58 THEN 
+				ptDestByte:=ptDestByte+1;
+			END_IF
+			ptrRtnByte^:=ptDestByte^;//here start with ProdctionNr XXXXXX
+			ptrRtnByte:=ptrRtnByte+1;
+		END_IF
+		ptDestByte:=ptDestByte+1;
+	END_IF
+END_FOR
+//Replace $N with empty char in Bytearray
+FOR j:=0 TO 255 DO 
+	IF arrByte[j]=10 THEN //Ascii 10=$N(new line character 
+		arrByte[j]:=0;
+		exit;
+	end_if
+end_FOR
+
+
+GetProductionNumber:=BYTEARR_TO_MAXSTRING(arrByte);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="GetSizeofFileWriteData" Id="{8b85b2ca-6ca4-43a6-9b60-fc7cedef00e9}">
+      <Declaration><![CDATA[METHOD PRIVATE GetSizeofFileWriteData : UDINT
+VAR_INPUT
+END_VAR
+
+VAR
+	i: INT;
+	udi_countTotalByteArraySize:UDINT;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[FOR i:=0 TO MAX_BYTEARRAY_SIZE DO 
+	IF _FileWriteByteArray[i]<>0 THEN
+		udi_countTotalByteArraySize:=udi_countTotalByteArraySize+1;
+	END_IF
+END_FOR
+
+GetSizeofFileWriteData:=udi_countTotalByteArraySize;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="GetSlaveAddress" Id="{b66ff650-0dcd-461d-bbc1-c25c2b1be2fb}">
+      <Declaration><![CDATA[METHOD PRIVATE GetSlaveAddress : STRING
+VAR_INPUT
+	Str1:STRING;
+END_VAR
+VAR		
+	ptByte		:POINTER TO BYTE;
+	ptDestByte	:POINTER TO BYTE;
+	ptrRtnByte	:POINTER TO BYTE;
+	i			:INT;
+	count		:INT;
+	arrByte		:ARRAY [0..255] OF BYTE;
+	j			:UINT;
+	_SlaveAdrStart	:BOOL;
+END_VAR	]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//set the initial adress 
+ptByte:=ADR(Str1);
+ptDestByte:=ptByte;
+//reset the Array of byte 
+FOR j:=0 TO 50 DO 
+	arrByte[j]:=0;
+END_FOR
+ptrRtnByte:=ADR(arrByte);//set initial adress 
+
+count:=0;
+FOR i:=0 TO LEN(Str1) DO 
+	IF ptDestByte^<>0 THEN
+		//save the string
+		IF ptDestByte^=58 THEN  //check for ':' character 
+			_SlaveAdrStart:=TRUE;
+			ptDestByte:=ptDestByte+1;
+		END_IF
+		IF _SlaveAdrStart THEN 
+			IF ptDestByte^=59 THEN 
+				EXIT;
+			ELSE
+				ptrRtnByte^:=ptDestByte^;
+				ptrRtnByte:=ptrRtnByte+1;
+			END_IF  
+		END_IF
+		ptDestByte:=ptDestByte+1;
+	END_IF	
+END_FOR
+
+GetSlaveAddress:=BYTEARR_TO_MAXSTRING(arrByte);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="OutputHandle" Id="{18e8f52a-3397-4751-8c80-73f49670df1a}">
+      <Declaration><![CDATA[(*Method to handle function block output variable Done,Busy,Error*)
+METHOD PRIVATE OutputHandle : BOOL
+VAR_INPUT
+	
+END_VAR
+VAR
+	
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[(*At a time only one variale should be true after the rise trigger of execute*)
+//if error is occured after execute
+IF Error THEN 
+	Busy:=FALSE;
+END_IF
+//reset error if no execute 
+IF Error AND NOT Execute THEN 
+	Error:=FALSE;
+	nErrId_ADS:=0;
+	nFbErrorID:=0;
+END_IF
+//Reset done if no execute
+IF Done AND NOT Execute THEN
+	Done:=FALSE; 
+	_xFirstInvocation:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="PrepareFileWriteData" Id="{e3f48ca2-c905-47b0-ad74-c8300c9ec92e}">
+      <Declaration><![CDATA[METHOD PRIVATE PrepareFileWriteData : BOOL
+VAR_INPUT
+END_VAR
+
+VAR
+	iByteArrayIndex				: INT;
+	iStoberSlaveIndex			: INT;
+	iFileLineIndex				: INT;
+	DeviceInfoTextLineString	: STRING;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[iByteArrayIndex:=0; 
+FOR iStoberSlaveIndex:=1 TO GVL_Constant.MAX_STOBER_SLAVES DO
+	
+	IF GLOBAL_DeviceInfo.arr_DeviceInfodata[iStoberSlaveIndex].Slave_Address<>'' AND GLOBAL_DeviceInfo.arr_DeviceInfodata[iStoberSlaveIndex].Production_Number<>'' THEN 
+	
+		FOR iFileLineIndex:=0 TO LEN(SetFileLine(SlaveAddr:=GLOBAL_DeviceInfo.arr_DeviceInfodata[iStoberSlaveIndex].Slave_Address,ProdNr:=GLOBAL_DeviceInfo.arr_DeviceInfodata[iStoberSlaveIndex].Production_Number))-1 DO
+			
+			IF iByteArrayIndex<MAX_BYTEARRAY_SIZE THEN
+				DeviceInfoTextLineString:=SetFileLine(SlaveAddr:=GLOBAL_DeviceInfo.arr_DeviceInfodata[iStoberSlaveIndex].Slave_Address,ProdNr:=GLOBAL_DeviceInfo.arr_DeviceInfodata[iStoberSlaveIndex].Production_Number);
+				 _FileWriteByteArray[iByteArrayIndex]:=DeviceInfoTextLineString[iFileLineIndex];
+				 IF iFileLineIndex<>LEN(SetFileLine(SlaveAddr:=GLOBAL_DeviceInfo.arr_DeviceInfodata[iStoberSlaveIndex].Slave_Address,ProdNr:=GLOBAL_DeviceInfo.arr_DeviceInfodata[iStoberSlaveIndex].Production_Number)) THEN 
+				 	iByteArrayIndex:=iByteArrayIndex+1;
+				 END_IF	
+			END_IF
+ 		
+		END_FOR
+	ELSE
+		_iState:=_iState+1;
+		EXIT;	
+	END_IF
+	
+END_FOR]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="SetFileLine" Id="{14a27323-ff43-4c44-9613-feb153383bc4}">
+      <Declaration><![CDATA[(*Method returns the linetext(slaveAdr:xxxx;ProdNr:xxxxxxx) which is stored in the Deviceinfo.txt file*)
+METHOD PRIVATE SetFileLine : STRING
+VAR_INPUT
+	SlaveAddr	:STRING;
+	ProdNr		:STRING;
+END_VAR
+VAR
+	sFileLine	:STRING:='';
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[(*The slave address and production number that need to saved in the Deviceinfo.txt file
+  e.g. SlaveAdr:1001;ProdNr:9001151 *)
+sFileLine:=CONCAT(STR1:='SlaveAdr:',STR2:=TO_STRING(SlaveAddr));
+sFileLine:=CONCAT(CONCAT(STR1:=sFileLine,STR2:=';'),STR2:='ProdNr:');
+sFileLine:=Concat(STR1:=sFileLine,STR2:=ProdNr);
+sFileLine:=CONCAT(STR1:=sFileLine,STR2:='$N');
+
+//Return fileline 
+SetFileLine:=sFileLine;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="SetTimeout" Id="{3e77775e-1598-47f9-aaa8-b9a320ec6a3e}">
+      <Declaration><![CDATA[METHOD PRIVATE SetTimeout : TIME
+VAR_INPUT
+END_VAR
+
+VAR
+	_Timeout: TIME;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF Servicetype=eSERVICE.Backup OR Servicetype=eService.Backup_RevDocu THEN 
+	_Timeout:=T#60S;
+ELSIF Servicetype=eSERVICE.Restore THEN 
+	_Timeout:=T#90S;	
+ELSE
+	_Timeout:=T#90S;	
+END_IF
+
+SetTimeout:=_Timeout;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="SynchronousFlagHandle" Id="{42713e9b-20a6-4076-8ebf-6b67ebf54e66}">
+      <Declaration><![CDATA[METHOD PRIVATE SynchronousFlagHandle : INT
+VAR_INPUT
+	SynchronousValue		:INT;
+END_VAR
+
+
+VAR
+	ADS_ReturnValue:INT;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//TO-DO 
+(*Method to handle Script mode return values*)
+(*
+	• Backup oder Restore ist erfolgreich------------------------------------------------------> 1
+	• Drive controller project not found ------------------------------------------------------> 201
+	• Drive controller project found several times in the project folder-----------------------> 203
+	• Project open error ----------------------------------------------------------------------> 205	
+	• Conncection to drive controller failed---------------------------------------------------> 207
+	• Online connection failed ----------------------------------------------------------------> 209
+*)	
+ADS_ReturnValue:=SynchronousValue;
+
+CASE ADS_ReturnValue OF 
+	
+	0:(*Default value do nothing*)
+		SynchronousFlagHandle:=0;
+		nFbErrorID:=eFBERROR.NoError;
+		
+	1:(*Backup or restore done*)
+		SynchronousFlagHandle:=1;
+		nFbErrorID:=eFBERROR.NoError;
+		
+	2:(*Drive controller project not found,Error code-201*)
+		SynchronousFlagHandle:=2;
+		nFbErrorID:=eFBERROR.ProjectNotFound;
+															
+	3:(*Drive Controller found several times in project,Error code-203*)
+		SynchronousFlagHandle:=3;
+		nFbErrorID:=eFBERROR.MoreThanOneProjectFound;
+		
+	4:(*Project open error, Error code-205*)
+		SynchronousFlagHandle:=4;
+		nFbErrorID:=eFBERROR.OpenProjectError;
+		
+	5:(*Connection to Drive controller failed,Error code-207*)
+		SynchronousFlagHandle:=5;
+		nFbErrorID:=eFBERROR.ConnectionError;
+		
+	6:(*Online connection failed ,Error code-209*)
+		SynchronousFlagHandle:=6;
+		nFbErrorID:=eFBERROR.OnlineError;
+		
+	7:
+		SynchronousFlagHandle:=7;
+		//nFbErrorID:=eERROR.DriveControllerConnnectionFailed;
+		
+	8:
+		SynchronousFlagHandle:=8;
+		//nFbErrorID:=eERROR.DriveControllerNotAccessible;
+		
+	9:
+		SynchronousFlagHandle:=9;
+		//nFbErrorID:=eERROR.ConfigurationReadFailed;
+		
+	10:
+		SynchronousFlagHandle:=10;
+		//nFbErrorID:=eERROR.ConfigurationWriteFailed;
+		
+	11:
+		SynchronousFlagHandle:=11;
+		//nFbErrorID:=eERROR.FailedToOpenProject;
+		
+	12:
+		SynchronousFlagHandle:=12;
+		//nFbErrorID:=eERROR.FailedToSaveProject;
+ELSE
+	SynchronousFlagHandle:=0;
+END_CASE
+
+]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="STOBER_Backup_Restore">
+      <LineId Id="5049" Count="3" />
+      <LineId Id="5992" Count="0" />
+      <LineId Id="5991" Count="0" />
+      <LineId Id="5053" Count="6" />
+      <LineId Id="5970" Count="0" />
+      <LineId Id="5060" Count="5" />
+      <LineId Id="5686" Count="0" />
+      <LineId Id="5605" Count="1" />
+      <LineId Id="5604" Count="0" />
+      <LineId Id="5687" Count="0" />
+      <LineId Id="5968" Count="0" />
+      <LineId Id="5066" Count="0" />
+      <LineId Id="5969" Count="0" />
+      <LineId Id="5764" Count="0" />
+      <LineId Id="5888" Count="0" />
+      <LineId Id="5805" Count="1" />
+      <LineId Id="5813" Count="0" />
+      <LineId Id="5807" Count="0" />
+      <LineId Id="5889" Count="0" />
+      <LineId Id="5808" Count="1" />
+      <LineId Id="5811" Count="1" />
+      <LineId Id="5810" Count="0" />
+      <LineId Id="5774" Count="0" />
+      <LineId Id="5068" Count="15" />
+      <LineId Id="6224" Count="0" />
+      <LineId Id="5084" Count="53" />
+      <LineId Id="6068" Count="0" />
+      <LineId Id="5138" Count="1" />
+      <LineId Id="6069" Count="0" />
+      <LineId Id="6145" Count="2" />
+      <LineId Id="5140" Count="7" />
+      <LineId Id="5149" Count="21" />
+      <LineId Id="5172" Count="105" />
+      <LineId Id="5283" Count="2" />
+      <LineId Id="5432" Count="0" />
+      <LineId Id="5299" Count="0" />
+      <LineId Id="5305" Count="3" />
+      <LineId Id="5434" Count="2" />
+      <LineId Id="5438" Count="0" />
+      <LineId Id="5510" Count="0" />
+      <LineId Id="5515" Count="0" />
+      <LineId Id="5893" Count="0" />
+      <LineId Id="5517" Count="5" />
+      <LineId Id="5512" Count="0" />
+      <LineId Id="5523" Count="0" />
+      <LineId Id="5513" Count="0" />
+      <LineId Id="5525" Count="0" />
+      <LineId Id="5528" Count="0" />
+      <LineId Id="5530" Count="0" />
+      <LineId Id="5526" Count="1" />
+      <LineId Id="5511" Count="0" />
+      <LineId Id="5437" Count="0" />
+      <LineId Id="5309" Count="37" />
+      <LineId Id="5359" Count="0" />
+      <LineId Id="5347" Count="11" />
+      <LineId Id="4831" Count="0" />
+      <LineId Id="5973" Count="0" />
+      <LineId Id="5986" Count="0" />
+      <LineId Id="5972" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_Backup_Restore.ActivateProcess">
+      <LineId Id="62" Count="0" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="45" Count="0" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="46" Count="0" />
+      <LineId Id="73" Count="0" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="74" Count="1" />
+      <LineId Id="88" Count="0" />
+      <LineId Id="77" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="65" Count="0" />
+      <LineId Id="87" Count="0" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="40" Count="0" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="67" Count="0" />
+      <LineId Id="66" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_Backup_Restore.BackupRestore">
+      <LineId Id="13" Count="1" />
+      <LineId Id="552" Count="0" />
+      <LineId Id="549" Count="0" />
+      <LineId Id="15" Count="2" />
+      <LineId Id="19" Count="4" />
+      <LineId Id="563" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="316" Count="0" />
+      <LineId Id="332" Count="0" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="144" Count="0" />
+      <LineId Id="449" Count="0" />
+      <LineId Id="515" Count="0" />
+      <LineId Id="486" Count="0" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="428" Count="0" />
+      <LineId Id="553" Count="0" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="256" Count="0" />
+      <LineId Id="287" Count="0" />
+      <LineId Id="259" Count="0" />
+      <LineId Id="519" Count="0" />
+      <LineId Id="333" Count="0" />
+      <LineId Id="476" Count="0" />
+      <LineId Id="334" Count="0" />
+      <LineId Id="477" Count="0" />
+      <LineId Id="520" Count="2" />
+      <LineId Id="533" Count="1" />
+      <LineId Id="531" Count="0" />
+      <LineId Id="535" Count="4" />
+      <LineId Id="564" Count="0" />
+      <LineId Id="532" Count="0" />
+      <LineId Id="525" Count="0" />
+      <LineId Id="523" Count="0" />
+      <LineId Id="289" Count="0" />
+      <LineId Id="263" Count="0" />
+      <LineId Id="260" Count="0" />
+      <LineId Id="258" Count="0" />
+      <LineId Id="222" Count="1" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="224" Count="0" />
+      <LineId Id="213" Count="1" />
+      <LineId Id="196" Count="1" />
+      <LineId Id="202" Count="0" />
+      <LineId Id="216" Count="0" />
+      <LineId Id="200" Count="1" />
+      <LineId Id="210" Count="0" />
+      <LineId Id="212" Count="0" />
+      <LineId Id="211" Count="0" />
+      <LineId Id="232" Count="0" />
+      <LineId Id="323" Count="0" />
+      <LineId Id="322" Count="0" />
+      <LineId Id="282" Count="0" />
+      <LineId Id="198" Count="0" />
+      <LineId Id="301" Count="1" />
+      <LineId Id="306" Count="1" />
+      <LineId Id="310" Count="0" />
+      <LineId Id="304" Count="1" />
+      <LineId Id="308" Count="0" />
+      <LineId Id="303" Count="0" />
+      <LineId Id="309" Count="0" />
+      <LineId Id="194" Count="0" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="33" Count="0" />
+      <LineId Id="188" Count="0" />
+      <LineId Id="34" Count="1" />
+      <LineId Id="182" Count="0" />
+      <LineId Id="37" Count="5" />
+      <LineId Id="505" Count="1" />
+      <LineId Id="43" Count="3" />
+      <LineId Id="467" Count="0" />
+      <LineId Id="47" Count="5" />
+      <LineId Id="283" Count="0" />
+      <LineId Id="324" Count="0" />
+      <LineId Id="53" Count="4" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="250" Count="0" />
+      <LineId Id="62" Count="3" />
+      <LineId Id="69" Count="0" />
+      <LineId Id="414" Count="3" />
+      <LineId Id="70" Count="0" />
+      <LineId Id="347" Count="0" />
+      <LineId Id="77" Count="0" />
+      <LineId Id="162" Count="0" />
+      <LineId Id="170" Count="0" />
+      <LineId Id="172" Count="0" />
+      <LineId Id="230" Count="1" />
+      <LineId Id="238" Count="1" />
+      <LineId Id="242" Count="0" />
+      <LineId Id="244" Count="0" />
+      <LineId Id="237" Count="0" />
+      <LineId Id="173" Count="0" />
+      <LineId Id="554" Count="0" />
+      <LineId Id="174" Count="1" />
+      <LineId Id="171" Count="0" />
+      <LineId Id="159" Count="0" />
+      <LineId Id="393" Count="0" />
+      <LineId Id="395" Count="1" />
+      <LineId Id="399" Count="1" />
+      <LineId Id="404" Count="3" />
+      <LineId Id="409" Count="0" />
+      <LineId Id="408" Count="0" />
+      <LineId Id="398" Count="0" />
+      <LineId Id="410" Count="1" />
+      <LineId Id="397" Count="0" />
+      <LineId Id="394" Count="0" />
+      <LineId Id="348" Count="0" />
+      <LineId Id="355" Count="0" />
+      <LineId Id="358" Count="0" />
+      <LineId Id="360" Count="0" />
+      <LineId Id="362" Count="2" />
+      <LineId Id="361" Count="0" />
+      <LineId Id="359" Count="0" />
+      <LineId Id="413" Count="0" />
+      <LineId Id="374" Count="0" />
+      <LineId Id="356" Count="0" />
+      <LineId Id="412" Count="0" />
+      <LineId Id="79" Count="1" />
+      <LineId Id="82" Count="6" />
+      <LineId Id="284" Count="0" />
+      <LineId Id="437" Count="0" />
+      <LineId Id="89" Count="1" />
+      <LineId Id="418" Count="0" />
+      <LineId Id="91" Count="2" />
+      <LineId Id="114" Count="0" />
+      <LineId Id="370" Count="0" />
+      <LineId Id="376" Count="7" />
+      <LineId Id="438" Count="0" />
+      <LineId Id="384" Count="1" />
+      <LineId Id="419" Count="0" />
+      <LineId Id="386" Count="1" />
+      <LineId Id="373" Count="0" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="111" Count="0" />
+      <LineId Id="116" Count="4" />
+      <LineId Id="286" Count="0" />
+      <LineId Id="121" Count="0" />
+      <LineId Id="439" Count="0" />
+      <LineId Id="122" Count="4" />
+      <LineId Id="112" Count="1" />
+      <LineId Id="127" Count="0" />
+      <LineId Id="129" Count="0" />
+      <LineId Id="151" Count="0" />
+      <LineId Id="131" Count="0" />
+      <LineId Id="203" Count="0" />
+      <LineId Id="133" Count="0" />
+      <LineId Id="204" Count="0" />
+      <LineId Id="135" Count="1" />
+      <LineId Id="139" Count="0" />
+      <LineId Id="141" Count="0" />
+      <LineId Id="555" Count="0" />
+      <LineId Id="142" Count="0" />
+      <LineId Id="145" Count="0" />
+      <LineId Id="143" Count="0" />
+      <LineId Id="128" Count="0" />
+      <LineId Id="153" Count="1" />
+      <LineId Id="556" Count="0" />
+      <LineId Id="155" Count="1" />
+      <LineId Id="152" Count="0" />
+      <LineId Id="72" Count="0" />
+      <LineId Id="195" Count="0" />
+      <LineId Id="73" Count="0" />
+      <LineId Id="464" Count="0" />
+      <LineId Id="458" Count="0" />
+      <LineId Id="76" Count="0" />
+      <LineId Id="349" Count="0" />
+      <LineId Id="448" Count="0" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_Backup_Restore.CallInternalFbs">
+      <LineId Id="29" Count="0" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="46" Count="0" />
+      <LineId Id="55" Count="0" />
+      <LineId Id="47" Count="1" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="11" Count="0" />
+      <LineId Id="7" Count="3" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="59" Count="1" />
+      <LineId Id="49" Count="0" />
+      <LineId Id="17" Count="2" />
+      <LineId Id="50" Count="0" />
+      <LineId Id="23" Count="2" />
+    </LineIds>
+    <LineIds Name="STOBER_Backup_Restore.GetADSPort">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_Backup_Restore.GetBoxName">
+      <LineId Id="86" Count="0" />
+      <LineId Id="77" Count="0" />
+      <LineId Id="18" Count="0" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="50" Count="1" />
+      <LineId Id="28" Count="1" />
+      <LineId Id="110" Count="0" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="67" Count="0" />
+      <LineId Id="48" Count="0" />
+      <LineId Id="87" Count="1" />
+      <LineId Id="93" Count="0" />
+      <LineId Id="122" Count="0" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="120" Count="0" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="42" Count="2" />
+      <LineId Id="115" Count="1" />
+      <LineId Id="111" Count="0" />
+      <LineId Id="46" Count="0" />
+      <LineId Id="61" Count="0" />
+      <LineId Id="95" Count="1" />
+      <LineId Id="99" Count="0" />
+      <LineId Id="121" Count="0" />
+      <LineId Id="101" Count="0" />
+      <LineId Id="65" Count="0" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="78" Count="0" />
+      <LineId Id="126" Count="0" />
+      <LineId Id="55" Count="0" />
+      <LineId Id="45" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="106" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_Backup_Restore.GetCommandString">
+      <LineId Id="23" Count="0" />
+      <LineId Id="18" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="29" Count="7" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="37" Count="2" />
+      <LineId Id="89" Count="0" />
+      <LineId Id="80" Count="1" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="69" Count="10" />
+      <LineId Id="68" Count="0" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="67" Count="0" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="40" Count="10" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="91" Count="0" />
+      <LineId Id="13" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="6" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_Backup_Restore.GetProductionNumber">
+      <LineId Id="137" Count="25" />
+      <LineId Id="173" Count="0" />
+      <LineId Id="167" Count="5" />
+      <LineId Id="166" Count="0" />
+      <LineId Id="165" Count="0" />
+      <LineId Id="50" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_Backup_Restore.GetSizeofFileWriteData">
+      <LineId Id="30" Count="5" />
+      <LineId Id="14" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_Backup_Restore.GetSlaveAddress">
+      <LineId Id="16" Count="27" />
+      <LineId Id="45" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_Backup_Restore.OutputHandle">
+      <LineId Id="41" Count="11" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="54" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_Backup_Restore.PrepareFileWriteData">
+      <LineId Id="120" Count="20" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_Backup_Restore.SetFileLine">
+      <LineId Id="23" Count="1" />
+      <LineId Id="6" Count="2" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="13" Count="0" />
+      <LineId Id="15" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_Backup_Restore.SetTimeout">
+      <LineId Id="5" Count="1" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="15" Count="1" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="13" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_Backup_Restore.SynchronousFlagHandle">
+      <LineId Id="14" Count="3" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="121" Count="0" />
+      <LineId Id="34" Count="0" />
+      <LineId Id="123" Count="1" />
+      <LineId Id="122" Count="0" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="79" Count="0" />
+      <LineId Id="70" Count="0" />
+      <LineId Id="40" Count="0" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="48" Count="0" />
+      <LineId Id="93" Count="0" />
+      <LineId Id="101" Count="0" />
+      <LineId Id="49" Count="1" />
+      <LineId Id="81" Count="0" />
+      <LineId Id="102" Count="0" />
+      <LineId Id="51" Count="1" />
+      <LineId Id="82" Count="0" />
+      <LineId Id="103" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="46" Count="0" />
+      <LineId Id="83" Count="0" />
+      <LineId Id="104" Count="0" />
+      <LineId Id="54" Count="1" />
+      <LineId Id="84" Count="0" />
+      <LineId Id="105" Count="0" />
+      <LineId Id="56" Count="1" />
+      <LineId Id="85" Count="0" />
+      <LineId Id="106" Count="0" />
+      <LineId Id="58" Count="1" />
+      <LineId Id="86" Count="0" />
+      <LineId Id="107" Count="0" />
+      <LineId Id="60" Count="1" />
+      <LineId Id="87" Count="0" />
+      <LineId Id="108" Count="0" />
+      <LineId Id="62" Count="0" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="88" Count="0" />
+      <LineId Id="109" Count="0" />
+      <LineId Id="63" Count="1" />
+      <LineId Id="89" Count="0" />
+      <LineId Id="110" Count="0" />
+      <LineId Id="65" Count="1" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="111" Count="0" />
+      <LineId Id="67" Count="1" />
+      <LineId Id="91" Count="0" />
+      <LineId Id="112" Count="0" />
+      <LineId Id="69" Count="0" />
+      <LineId Id="92" Count="0" />
+      <LineId Id="95" Count="0" />
+      <LineId Id="125" Count="1" />
+      <LineId Id="41" Count="0" />
+      <LineId Id="98" Count="0" />
+      <LineId Id="100" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

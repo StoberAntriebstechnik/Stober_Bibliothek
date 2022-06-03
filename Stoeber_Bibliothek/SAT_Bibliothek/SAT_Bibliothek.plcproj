@@ -1,0 +1,618 @@
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <FileVersion>1.0.0.0</FileVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{8f0612ac-ef55-476e-b9ab-09f2d714d7e4}</ProjectGuid>
+    <SubObjectsSortedByName>True</SubObjectsSortedByName>
+    <DownloadApplicationInfo>true</DownloadApplicationInfo>
+    <WriteProductVersion>true</WriteProductVersion>
+    <GenerateTpy>false</GenerateTpy>
+    <Name>SAT_Bibliothek</Name>
+    <ProgramVersion>3.1.4024.12</ProgramVersion>
+    <Application>{3ce283b4-3186-404c-8f52-9dc570e228a7}</Application>
+    <TypeSystem>{aa7b2fdd-1002-4387-8f1b-a4b9350d0e44}</TypeSystem>
+    <Implicit_Task_Info>{672d3857-26aa-46cc-8a6b-b6cbfbf8e9d7}</Implicit_Task_Info>
+    <Implicit_KindOfTask>{e41cec23-17d3-472b-a3e8-c3f8e64ae742}</Implicit_KindOfTask>
+    <Implicit_Jitter_Distribution>{7c2c10f3-ad83-4c20-b867-9bd5e25ac0b7}</Implicit_Jitter_Distribution>
+    <LibraryReferences>{2151d0dc-d5d4-419b-9346-27d68a8d5e15}</LibraryReferences>
+    <Company>STÖBER Antriebstechnik GmbH + Co. KG</Company>
+    <Released>false</Released>
+    <Title>STOBER_G6_Util</Title>
+    <ProjectVersion>3.1.0.1</ProjectVersion>
+    <LibraryCategories>
+      <LibraryCategory>
+        <Id>{e98088bb-59f5-4096-8784-4443932920df}</Id>
+        <Version>1.0.0.0</Version>
+        <DefaultName>Application</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{d2c47c8c-760e-440c-9147-4468a3c03edb}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{e98088bb-59f5-4096-8784-4443932920df}</Id>
+        </ParentCategory>
+        <DefaultName>CAA</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{d95d9244-a520-4bd0-bff7-3bbda884de4c}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{e98088bb-59f5-4096-8784-4443932920df}</Id>
+        </ParentCategory>
+        <DefaultName>STÖBER Antriebstechnik GmbH + Co. KG</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{9bad807f-0127-4ea6-86e7-4f68c24e0225}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{e98088bb-59f5-4096-8784-4443932920df}</Id>
+        </ParentCategory>
+        <DefaultName>Common</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{8677b78e-b730-40de-8a62-fdbce8da6680}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{e98088bb-59f5-4096-8784-4443932920df}</Id>
+        </ParentCategory>
+        <DefaultName>Safety</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{3dd4868c-6477-4606-b687-f340a9dbdd2c}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{e98088bb-59f5-4096-8784-4443932920df}</Id>
+        </ParentCategory>
+        <DefaultName>SoftMotion</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{66558e58-9485-48b4-9433-2bf60b045756}</Id>
+        <Version>1.0.0.0</Version>
+        <DefaultName>Intern</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{b8b4ee4e-1f42-45af-8ccf-c7f09c488826}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{66558e58-9485-48b4-9433-2bf60b045756}</Id>
+        </ParentCategory>
+        <DefaultName>CAA</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{385db9bf-1635-44ea-9c03-f7e409018454}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{66558e58-9485-48b4-9433-2bf60b045756}</Id>
+        </ParentCategory>
+        <DefaultName>CANbus</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{4b460928-c15e-4b69-919b-8e6fbab12643}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{66558e58-9485-48b4-9433-2bf60b045756}</Id>
+        </ParentCategory>
+        <DefaultName>Compatibility</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{7fc58ff6-d63b-4aac-a20f-7abbc9fd72f8}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{66558e58-9485-48b4-9433-2bf60b045756}</Id>
+        </ParentCategory>
+        <DefaultName>DataServer</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{0204e5d6-0060-4153-acd0-429a397324d0}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{66558e58-9485-48b4-9433-2bf60b045756}</Id>
+        </ParentCategory>
+        <DefaultName>IoDriverBase</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{a560fc75-2952-4be9-b2f7-e04b029744ab}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{66558e58-9485-48b4-9433-2bf60b045756}</Id>
+        </ParentCategory>
+        <DefaultName>IoDrivers</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{7f3353de-c77d-4c8c-9bc0-5b221ce0a7fe}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{66558e58-9485-48b4-9433-2bf60b045756}</Id>
+        </ParentCategory>
+        <DefaultName>NetVars</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{e129985a-d24f-4869-8755-5a2b089f16c4}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{66558e58-9485-48b4-9433-2bf60b045756}</Id>
+        </ParentCategory>
+        <DefaultName>Profiler</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{75a5fc32-fdd8-4338-9a21-cd620e3c7569}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{66558e58-9485-48b4-9433-2bf60b045756}</Id>
+        </ParentCategory>
+        <DefaultName>RecipeManagement</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{59ff46a0-e373-49c8-b11c-91d772d9f754}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{66558e58-9485-48b4-9433-2bf60b045756}</Id>
+        </ParentCategory>
+        <DefaultName>Safety</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{fff3a71e-3da2-468a-b82b-6c8fa8607f26}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{66558e58-9485-48b4-9433-2bf60b045756}</Id>
+        </ParentCategory>
+        <DefaultName>SFC</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{af11cf2a-bea4-4a38-add0-f13b3682d425}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{66558e58-9485-48b4-9433-2bf60b045756}</Id>
+        </ParentCategory>
+        <DefaultName>SoftMotion</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{e7430333-8bd3-4ce2-8535-d61528e26db2}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{66558e58-9485-48b4-9433-2bf60b045756}</Id>
+        </ParentCategory>
+        <DefaultName>SymbolConfiguration</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{24114f71-a313-48dc-b727-4814a5ae5e7e}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{66558e58-9485-48b4-9433-2bf60b045756}</Id>
+        </ParentCategory>
+        <DefaultName>Visu</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{b62c2041-b627-4159-b727-149b019609e6}</Id>
+        <Version>1.0.0.0</Version>
+        <DefaultName>System</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{62e04908-d9eb-41d7-b3fd-8087020771a0}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{b62c2041-b627-4159-b727-149b019609e6}</Id>
+        </ParentCategory>
+        <DefaultName>CAA</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{8302f600-9f75-49a9-9172-d355d63e3a62}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{b62c2041-b627-4159-b727-149b019609e6}</Id>
+        </ParentCategory>
+        <DefaultName>SoftMotion</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{5250160a-a348-41ef-96d8-0cd52f94e320}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{b62c2041-b627-4159-b727-149b019609e6}</Id>
+        </ParentCategory>
+        <DefaultName>SysLibs</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{45f0ac40-c00c-4d2d-a74e-2cf5adbaf3a4}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{b62c2041-b627-4159-b727-149b019609e6}</Id>
+        </ParentCategory>
+        <DefaultName>SysLibs23</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{75b20332-150b-4ccd-aa20-fb072490fb80}</Id>
+        <Version>1.0.0.0</Version>
+        <DefaultName>Target</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{7db0e3a2-bee3-451b-932c-0f87340204d4}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{75b20332-150b-4ccd-aa20-fb072490fb80}</Id>
+        </ParentCategory>
+        <DefaultName>3S - Smart Software Solutions GmbH</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{519b1d74-b1de-4a68-a3bf-c1fdb3909c18}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{7db0e3a2-bee3-451b-932c-0f87340204d4}</Id>
+        </ParentCategory>
+        <DefaultName>PLCWinNT V3.x</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{21e56dab-2863-4515-a4a5-d154a08ccd4e}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{519b1d74-b1de-4a68-a3bf-c1fdb3909c18}</Id>
+        </ParentCategory>
+        <DefaultName>CAA</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{bef66cc1-9006-4083-92e8-84957423b2c7}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{519b1d74-b1de-4a68-a3bf-c1fdb3909c18}</Id>
+        </ParentCategory>
+        <DefaultName>Safety</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{c52dbc97-13e5-46c3-8641-481f5d8daff9}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{519b1d74-b1de-4a68-a3bf-c1fdb3909c18}</Id>
+        </ParentCategory>
+        <DefaultName>SoftMotion</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{c179664b-4223-4f78-b898-054073c60fb3}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{7db0e3a2-bee3-451b-932c-0f87340204d4}</Id>
+        </ParentCategory>
+        <DefaultName>PLCWinRTE V3.x</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{2a47d467-e781-4f73-a35c-01b9d33d28d2}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{c179664b-4223-4f78-b898-054073c60fb3}</Id>
+        </ParentCategory>
+        <DefaultName>CAA</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{a4c9aab3-b8bd-4826-9677-1820291d2f2d}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{c179664b-4223-4f78-b898-054073c60fb3}</Id>
+        </ParentCategory>
+        <DefaultName>Safety</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{11ebb73b-df74-48e0-8fed-9b2db84e438a}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{c179664b-4223-4f78-b898-054073c60fb3}</Id>
+        </ParentCategory>
+        <DefaultName>SoftMotion</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{769db563-3955-441f-b96b-8b177b70d377}</Id>
+        <Version>1.0.0.0</Version>
+        <DefaultName>Use Cases</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{5ae804c1-a428-4c88-bd60-f4966d9b522b}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{66558e58-9485-48b4-9433-2bf60b045756}</Id>
+        </ParentCategory>
+        <DefaultName>Utils</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{e66bdbd6-b91d-4e4a-97d6-c698c033210c}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{b8b4ee4e-1f42-45af-8ccf-c7f09c488826}</Id>
+        </ParentCategory>
+        <DefaultName>Application</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{c812fecb-9bc1-488a-9e68-df19744bfaef}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{b8b4ee4e-1f42-45af-8ccf-c7f09c488826}</Id>
+        </ParentCategory>
+        <DefaultName>Database</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{6680e7c8-f7d5-41a9-94fe-14602a15effa}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{b8b4ee4e-1f42-45af-8ccf-c7f09c488826}</Id>
+        </ParentCategory>
+        <DefaultName>Fieldbus</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{b42cc94a-6be6-4e71-9420-bda87e1cd129}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{b8b4ee4e-1f42-45af-8ccf-c7f09c488826}</Id>
+        </ParentCategory>
+        <DefaultName>Foundation</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{50af6a48-e2e7-4280-82af-8818f86e464d}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{b8b4ee4e-1f42-45af-8ccf-c7f09c488826}</Id>
+        </ParentCategory>
+        <DefaultName>Guidelines</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{a60af49c-8a71-4300-a862-17e5fe7de198}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{b8b4ee4e-1f42-45af-8ccf-c7f09c488826}</Id>
+        </ParentCategory>
+        <DefaultName>Network</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{368639a0-d7b3-4311-9a2f-7bf2bab35b30}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{b8b4ee4e-1f42-45af-8ccf-c7f09c488826}</Id>
+        </ParentCategory>
+        <DefaultName>Runtime</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{a4072735-6719-4d80-ba50-1d428672d406}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{b8b4ee4e-1f42-45af-8ccf-c7f09c488826}</Id>
+        </ParentCategory>
+        <DefaultName>System</DefaultName>
+      </LibraryCategory>
+      <LibraryCategory>
+        <Id>{94be3750-453a-45b4-b1b7-327809b35168}</Id>
+        <Version>1.0.0.0</Version>
+        <ParentCategory>
+          <Id>{b8b4ee4e-1f42-45af-8ccf-c7f09c488826}</Id>
+        </ParentCategory>
+        <DefaultName>Utilities</DefaultName>
+      </LibraryCategory>
+    </LibraryCategories>
+    <SelectedLibraryCategories>
+      <Id>{d95d9244-a520-4bd0-bff7-3bbda884de4c}</Id>
+    </SelectedLibraryCategories>
+    <DefaultNamespace>STOBER_G6_Util</DefaultNamespace>
+    <Placeholder>STOBER_G6_Util</Placeholder>
+    <Author>STOBER</Author>
+    <CompilerVersion>3.0.0.0</CompilerVersion>
+    <Description>The function blocks in the library would be operational with STOBER drive controller  Firmware version 6.5-F and higher.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="DUTs\STOBER_Backup_Restore\eFBERROR.TcTLEO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="DUTs\STOBER_Backup_Restore\eSERVICE.TcTLEO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="DUTs\STOBER_Backup_Restore\eWriteState.TcTLEO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="DUTs\STOBER_Backup_Restore\E_EventType.TcTLEO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="DUTs\STOBER_Backup_Restore\ST_DeviceInfo.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="DUTs\STOBER_Backup_Restore\ST_Event.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="DUTs\STOBER_Boxname\Ethercat_State.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="DUTs\STOBER_Boxname\StoeberSlavedesc.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="DUTs\STOBER_Boxname\St_Error.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="DUTs\STOBER_MC_HOME\eERROR.TcTLEO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="DUTs\STOBER_MC_HOME\st_Set_Value.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="GVLs\GLOBAL_DeviceInfo.TcGVL">
+      <SubType>Code</SubType>
+      <LinkAlways>true</LinkAlways>
+    </Compile>
+    <Compile Include="GVLs\GVL_Constant.TcGVL">
+      <SubType>Code</SubType>
+      <LinkAlways>true</LinkAlways>
+    </Compile>
+    <Compile Include="POUs\FB_STOBER_BASE.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Functions\CONCAT4.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Functions\CONCAT8.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Logger\FB_logger.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Logger\FB_LogPersistentStorage.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Logger\GetSystemTimeStamp.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Logger\I_PersistentEventStorage.TcIO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\STOBER_Backup_Restore.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\STOBER_BoxName.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\STOBER_MC_HOME.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Project Information\F_GetCompany.TcPOU">
+      <SubType>Code</SubType>
+      <SystemCall>true</SystemCall>
+    </Compile>
+    <Compile Include="Project Information\F_GetTitle.TcPOU">
+      <SubType>Code</SubType>
+      <SystemCall>true</SystemCall>
+    </Compile>
+    <Compile Include="Project Information\F_GetVersion.TcPOU">
+      <SubType>Code</SubType>
+      <SystemCall>true</SystemCall>
+    </Compile>
+    <Compile Include="Version\Global_Version.TcGVL">
+      <SubType>Code</SubType>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="DUTs" />
+    <Folder Include="DUTs\STOBER_Backup_Restore" />
+    <Folder Include="DUTs\STOBER_Boxname" />
+    <Folder Include="DUTs\STOBER_MC_HOME" />
+    <Folder Include="GVLs" />
+    <Folder Include="POUs\Functions" />
+    <Folder Include="POUs\Logger" />
+    <Folder Include="Project Information" />
+    <Folder Include="Version" />
+    <Folder Include="VISUs" />
+    <Folder Include="POUs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PlaceholderReference Include="Tc2_EtherCAT">
+      <DefaultResolution>Tc2_EtherCAT, * (Beckhoff Automation GmbH)</DefaultResolution>
+      <Namespace>Tc2_EtherCAT</Namespace>
+    </PlaceholderReference>
+    <PlaceholderReference Include="Tc2_MC2">
+      <DefaultResolution>Tc2_MC2, * (Beckhoff Automation GmbH)</DefaultResolution>
+      <Namespace>Tc2_MC2</Namespace>
+    </PlaceholderReference>
+    <PlaceholderReference Include="Tc2_MC2_Drive">
+      <DefaultResolution>Tc2_MC2_Drive, * (Beckhoff Automation GmbH)</DefaultResolution>
+      <Namespace>Tc2_MC2_Drive</Namespace>
+    </PlaceholderReference>
+    <PlaceholderReference Include="Tc2_Standard">
+      <DefaultResolution>Tc2_Standard, * (Beckhoff Automation GmbH)</DefaultResolution>
+      <Namespace>Tc2_Standard</Namespace>
+    </PlaceholderReference>
+    <PlaceholderReference Include="Tc2_System">
+      <DefaultResolution>Tc2_System, * (Beckhoff Automation GmbH)</DefaultResolution>
+      <Namespace>Tc2_System</Namespace>
+    </PlaceholderReference>
+    <PlaceholderReference Include="Tc2_Utilities">
+      <DefaultResolution>Tc2_Utilities, * (Beckhoff Automation GmbH)</DefaultResolution>
+      <Namespace>Tc2_Utilities</Namespace>
+    </PlaceholderReference>
+    <PlaceholderReference Include="Tc3_Module">
+      <DefaultResolution>Tc3_Module, * (Beckhoff Automation GmbH)</DefaultResolution>
+      <Namespace>Tc3_Module</Namespace>
+    </PlaceholderReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="SAT_Bibliothek.tmc">
+      <SubType>Content</SubType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <PlaceholderResolution Include="Tc2_EtherCAT">
+      <Resolution>Tc2_EtherCAT, * (Beckhoff Automation GmbH)</Resolution>
+    </PlaceholderResolution>
+  </ItemGroup>
+  <ProjectExtensions>
+    <PlcProjectOptions>
+      <XmlArchive>
+        <Data>
+          <o xml:space="preserve" t="OptionKey">
+      <v n="Name">"&lt;ProjectRoot&gt;"</v>
+      <d n="SubKeys" t="Hashtable" ckt="String" cvt="OptionKey">
+        <v>{535658C0-5AF5-460d-99A4-BFFB984A829A}</v>
+        <o>
+          <v n="Name">"{535658C0-5AF5-460d-99A4-BFFB984A829A}"</v>
+          <d n="SubKeys" t="Hashtable" />
+          <d n="Values" t="Hashtable" ckt="String">
+            <v>VersionConstraint</v>
+            <o t="ExactVersionConstraintToSave">
+              <v n="TheVersion">"3.0.0.0"</v>
+            </o>
+            <v>EnableBreakpointLogging</v>
+            <v>false</v>
+          </d>
+        </o>
+        <v>{8F99A816-E488-41E4-9FA3-846536012284}</v>
+        <o>
+          <v n="Name">"{8F99A816-E488-41E4-9FA3-846536012284}"</v>
+          <d n="SubKeys" t="Hashtable" />
+          <d n="Values" t="Hashtable" />
+        </o>
+        <v>{29BD8D0C-3586-4548-BB48-497B9A01693F}</v>
+        <o>
+          <v n="Name">"{29BD8D0C-3586-4548-BB48-497B9A01693F}"</v>
+          <d n="SubKeys" t="Hashtable" ckt="String" cvt="OptionKey">
+            <v>Rules</v>
+            <o>
+              <v n="Name">"Rules"</v>
+              <d n="SubKeys" t="Hashtable" />
+              <d n="Values" t="Hashtable" />
+            </o>
+          </d>
+          <d n="Values" t="Hashtable" />
+        </o>
+        <v>{40450F57-0AA3-4216-96F3-5444ECB29763}</v>
+        <o>
+          <v n="Name">"{40450F57-0AA3-4216-96F3-5444ECB29763}"</v>
+          <d n="SubKeys" t="Hashtable" />
+          <d n="Values" t="Hashtable" ckt="String" cvt="String">
+            <v>ActiveVisuProfile</v>
+            <v>IR0whWr8bwfwBwAAiD2qpQAAAABVAgAA37x72QAAAAABAAAAAAAAAAEaUwB5AHMAdABlAG0ALgBTAHQAcgBpAG4AZwACTHsAZgA5ADUAYgBiADQAMgA2AC0ANQA1ADIANAAtADQAYgA0ADUALQA5ADQAMAAwAC0AZgBiADAAZgAyAGUANwA3AGUANQAxAGIAfQADCE4AYQBtAGUABDBUAHcAaQBuAEMAQQBUACAAMwAuADEAIABCAHUAaQBsAGQAIAA0ADAAMgA0AC4ANwAFFlAAcgBvAGYAaQBsAGUARABhAHQAYQAGTHsAMQA2AGUANQA1AGIANgAwAC0ANwAwADQAMwAtADQAYQA2ADMALQBiADYANQBiAC0ANgAxADQANwAxADMAOAA3ADgAZAA0ADIAfQAHEkwAaQBiAHIAYQByAGkAZQBzAAhMewAzAGIAZgBkADUANAA1ADkALQBiADAANwBmAC0ANABkADYAZQAtAGEAZQAxAGEALQBhADgAMwAzADUANgBhADUANQAxADQAMgB9AAlMewA5AGMAOQA1ADgAOQA2ADgALQAyAGMAOAA1AC0ANAAxAGIAYgAtADgAOAA3ADEALQA4ADkANQBmAGYAMQBmAGUAZABlADEAYQB9AAoOVgBlAHIAcwBpAG8AbgALBmkAbgB0AAwKVQBzAGEAZwBlAA0KVABpAHQAbABlAA4aVgBpAHMAdQBFAGwAZQBtAE0AZQB0AGUAcgAPDkMAbwBtAHAAYQBuAHkAEAxTAHkAcwB0AGUAbQARElYAaQBzAHUARQBsAGUAbQBzABIwVgBpAHMAdQBFAGwAZQBtAHMAUwBwAGUAYwBpAGEAbABDAG8AbgB0AHIAbwBsAHMAEyhWAGkAcwB1AEUAbABlAG0AcwBXAGkAbgBDAG8AbgB0AHIAbwBsAHMAFCRWAGkAcwB1AEUAbABlAG0AVABlAHgAdABFAGQAaQB0AG8AcgAVIlYAaQBzAHUATgBhAHQAaQB2AGUAQwBvAG4AdAByAG8AbAAWFHYAaQBzAHUAaQBuAHAAdQB0AHMAFwxzAHkAcwB0AGUAbQAYGFYAaQBzAHUARQBsAGUAbQBCAGEAcwBlABkmRABlAHYAUABsAGEAYwBlAGgAbwBsAGQAZQByAHMAVQBzAGUAZAAaCGIAbwBvAGwAGyJQAGwAdQBnAGkAbgBDAG8AbgBzAHQAcgBhAGkAbgB0AHMAHEx7ADQAMwBkADUAMgBiAGMAZQAtADkANAAyAGMALQA0ADQAZAA3AC0AOQBlADkANAAtADEAYgBmAGQAZgAzADEAMABlADYAMwBjAH0AHRxBAHQATABlAGEAcwB0AFYAZQByAHMAaQBvAG4AHhRQAGwAdQBnAGkAbgBHAHUAaQBkAB8WUwB5AHMAdABlAG0ALgBHAHUAaQBkACBIYQBmAGMAZAA1ADQANAA2AC0ANAA5ADEANAAtADQAZgBlADcALQBiAGIANwA4AC0AOQBiAGYAZgBlAGIANwAwAGYAZAAxADcAIRRVAHAAZABhAHQAZQBJAG4AZgBvACJMewBiADAAMwAzADYANgBhADgALQBiADUAYwAwAC0ANABiADkAYQAtAGEAMAAwAGUALQBlAGIAOAA2ADAAMQAxADEAMAA0AGMAMwB9ACMOVQBwAGQAYQB0AGUAcwAkTHsAMQA4ADYAOABmAGYAYwA5AC0AZQA0AGYAYwAtADQANQAzADIALQBhAGMAMAA2AC0AMQBlADMAOQBiAGIANQA1ADcAYgA2ADkAfQAlTHsAYQA1AGIAZAA0ADgAYwAzAC0AMABkADEANwAtADQAMQBiADUALQBiADEANgA0AC0ANQBmAGMANgBhAGQAMgBiADkANgBiADcAfQAmFk8AYgBqAGUAYwB0AHMAVAB5AHAAZQAnVFUAcABkAGEAdABlAEwAYQBuAGcAdQBhAGcAZQBNAG8AZABlAGwARgBvAHIAQwBvAG4AdgBlAHIAdABpAGIAbABlAEwAaQBiAHIAYQByAGkAZQBzACgQTABpAGIAVABpAHQAbABlACkUTABpAGIAQwBvAG0AcABhAG4AeQAqHlUAcABkAGEAdABlAFAAcgBvAHYAaQBkAGUAcgBzACs4UwB5AHMAdABlAG0ALgBDAG8AbABsAGUAYwB0AGkAbwBuAHMALgBIAGEAcwBoAHQAYQBiAGwAZQAsEnYAaQBzAHUAZQBsAGUAbQBzAC1INgBjAGIAMQBjAGQAZQAxAC0AZAA1AGQAYwAtADQAYQAzAGIALQA5ADAANQA0AC0AMgAxAGYAYQA3ADUANgBhADMAZgBhADQALihJAG4AdABlAHIAZgBhAGMAZQBWAGUAcgBzAGkAbwBuAEkAbgBmAG8AL0x7AGMANgAxADEAZQA0ADAAMAAtADcAZgBiADkALQA0AGMAMwA1AC0AYgA5AGEAYwAtADQAZQAzADEANABiADUAOQA5ADYANAAzAH0AMBhNAGEAagBvAHIAVgBlAHIAcwBpAG8AbgAxGE0AaQBuAG8AcgBWAGUAcgBzAGkAbwBuADIMTABlAGcAYQBjAHkAMzBMAGEAbgBnAHUAYQBnAGUATQBvAGQAZQBsAFYAZQByAHMAaQBvAG4ASQBuAGYAbwA0MEwAbwBhAGQATABpAGIAcgBhAHIAaQBlAHMASQBuAHQAbwBQAHIAbwBqAGUAYwB0ADUaQwBvAG0AcABhAHQAaQBiAGkAbABpAHQAeQDQAAIaA9ADAS0E0AUGGgfQBwgaAUUHCQjQAAkaBEUKCwQDAAAABQAAAA0AAAAAAAAA0AwLrQIAAADQDQEtDtAPAS0Q0AAJGgRFCgsEAwAAAAUAAAANAAAAKAAAANAMC60BAAAA0A0BLRHQDwEtENAACRoERQoLBAMAAAAFAAAADQAAAAAAAADQDAutAgAAANANAS0S0A8BLRDQAAkaBEUKCwQDAAAABQAAAA0AAAAUAAAA0AwLrQIAAADQDQEtE9APAS0Q0AAJGgRFCgsEAwAAAAUAAAANAAAAAAAAANAMC60CAAAA0A0BLRTQDwEtENAACRoERQoLBAMAAAAFAAAADQAAAAAAAADQDAutAgAAANANAS0V0A8BLRDQAAkaBEUKCwQDAAAABQAAAA0AAAAAAAAA0AwLrQIAAADQDQEtFtAPAS0X0AAJGgRFCgsEAwAAAAUAAAANAAAAKAAAANAMC60EAAAA0A0BLRjQDwEtENAZGq0BRRscAdAAHBoCRR0LBAMAAAAFAAAADQAAAAAAAADQHh8tINAhIhoCRSMkAtAAJRoFRQoLBAMAAAADAAAAAAAAAAoAAADQJgutAAAAANADAS0n0CgBLRHQKQEtENAAJRoFRQoLBAMAAAADAAAAAAAAAAoAAADQJgutAQAAANADAS0n0CgBLRHQKQEtEJoqKwFFAAEC0AABLSzQAAEtF9AAHy0t0C4vGgPQMAutAQAAANAxC60XAAAA0DIarQDQMy8aA9AwC60CAAAA0DELrQMAAADQMhqtANA0Gq0A0DUarQA=</v>
+          </d>
+        </o>
+        <v>{192FAD59-8248-4824-A8DE-9177C94C195A}</v>
+        <o>
+          <v n="Name">"{192FAD59-8248-4824-A8DE-9177C94C195A}"</v>
+          <d n="SubKeys" t="Hashtable" />
+          <d n="Values" t="Hashtable" />
+        </o>
+        <v>{E709B08B-B6E4-4966-8EED-D793A13114C6}</v>
+        <o>
+          <v n="Name">"{E709B08B-B6E4-4966-8EED-D793A13114C6}"</v>
+          <d n="SubKeys" t="Hashtable" />
+          <d n="Values" t="Hashtable" ckt="String" cvt="Boolean">
+            <v>EnableBreakpointLogging</v>
+            <v>False</v>
+          </d>
+        </o>
+        <v>{246001F4-279D-43AC-B241-948EB31120E1}</v>
+        <o>
+          <v n="Name">"{246001F4-279D-43AC-B241-948EB31120E1}"</v>
+          <d n="SubKeys" t="Hashtable" />
+          <d n="Values" t="Hashtable" />
+        </o>
+      </d>
+      <d n="Values" t="Hashtable" />
+    </o>
+        </Data>
+        <TypeList>
+          <Type n="Boolean">System.Boolean</Type>
+          <Type n="ExactVersionConstraintToSave">{f9079115-a4ba-4f30-bf7c-9e76613146fc}</Type>
+          <Type n="Hashtable">System.Collections.Hashtable</Type>
+          <Type n="OptionKey">{54dd0eac-a6d8-46f2-8c27-2f43c7e49861}</Type>
+          <Type n="String">System.String</Type>
+        </TypeList>
+      </XmlArchive>
+    </PlcProjectOptions>
+  </ProjectExtensions>
+</Project>

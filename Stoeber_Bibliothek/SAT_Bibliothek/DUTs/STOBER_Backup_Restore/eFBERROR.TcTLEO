@@ -1,0 +1,121 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.6">
+  <EnumerationTextList Name="eFBERROR" Id="{f1f614b5-a32b-40a2-9438-41e32fa4c5d6}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+{attribute 'strict'}
+TYPE eFBERROR :
+(   
+	(*Function block errors*)
+	NoError								:=0,
+	WrongFilePath						:=101,
+	WrongDS6_ProcessPath				:=103,
+	WrongEtherCATRevision				:=105,
+	InvalidBoxname						:=107,
+	WrongServiceTypeInput				:=109,
+	TimeoutExceed						:=111,
+	NoStoberSlaveInConfiguration		:=113,
+	
+	(*DS6 Errors*)
+	ProjectNotFound						:=201,//Drive controller project not found
+	MoreThanOneProjectFound				:=203,//Drive Controller found several times in project 
+	OpenProjectError					:=205,//project open error 
+	ConnectionError						:=207,//Connection to Drive controller failed 
+	OnlineError							:=209//Online connection failed 
+	
+	
+
+
+);
+END_TYPE
+]]></Declaration>
+    <XmlArchive>
+      <Data>
+        <o xml:space="preserve" t="TextListEnumerationTextListObject">
+          <l n="TextList" t="ArrayList" cet="TextListRow">
+            <o>
+              <v n="TextID">"NoError"</v>
+              <v n="TextDefault">"0"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"WrongFilePath"</v>
+              <v n="TextDefault">"101"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"WrongDS6_ProcessPath"</v>
+              <v n="TextDefault">"103"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"WrongEtherCATRevision"</v>
+              <v n="TextDefault">"105"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"InvalidBoxname"</v>
+              <v n="TextDefault">"107"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"WrongServiceTypeInput"</v>
+              <v n="TextDefault">"109"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"TimeoutExceed"</v>
+              <v n="TextDefault">"111"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"NoStoberSlaveInConfiguration"</v>
+              <v n="TextDefault">"113"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"ProjectNotFound"</v>
+              <v n="TextDefault">"201"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"MoreThanOneProjectFound"</v>
+              <v n="TextDefault">"203"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"OpenProjectError"</v>
+              <v n="TextDefault">"205"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"ConnectionError"</v>
+              <v n="TextDefault">"207"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"OnlineError"</v>
+              <v n="TextDefault">"209"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">""</v>
+              <v n="TextDefault">""</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+          </l>
+          <l n="Languages" t="ArrayList" />
+          <v n="GuidInit">{9211a230-c9e7-4b79-a9d4-f2dc22259c38}</v>
+          <v n="GuidReInit">{b19e87a6-2be1-40a2-82f9-cb11baae92d0}</v>
+          <v n="GuidExitX">{ea7a0eb3-4724-46da-8481-99c558f24b12}</v>
+        </o>
+      </Data>
+      <TypeList>
+        <Type n="ArrayList">System.Collections.ArrayList</Type>
+        <Type n="Guid">System.Guid</Type>
+        <Type n="String">System.String</Type>
+        <Type n="TextListEnumerationTextListObject">{4b60233c-f940-4beb-b331-82133b520151}</Type>
+        <Type n="TextListRow">{53da1be7-ad25-47c3-b0e8-e26286dad2e0}</Type>
+      </TypeList>
+    </XmlArchive>
+  </EnumerationTextList>
+</TcPlcObject>

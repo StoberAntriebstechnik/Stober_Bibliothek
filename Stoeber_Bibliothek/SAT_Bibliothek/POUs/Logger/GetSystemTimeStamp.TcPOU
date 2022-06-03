@@ -1,0 +1,37 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.6">
+  <POU Name="GetSystemTimeStamp" Id="{f595dd8b-6c73-4849-acfd-510de3a4d5b8}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION GetSystemTimeStamp
+VAR_INPUT
+	stEvent:REFERENCE TO ST_Event;
+END_VAR
+VAR
+	fbGetSYSTEMTIME			:	GETSYSTEMTIME;
+	stFileTime				:	T_FILETIME;
+	dateNow					:   T_MAXSTRING;
+	timeNow					:	T_MaxString;
+	fbFiletime_toLocaltime	:	FB_FileTimeToTzSpecificLocalTime;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[fbGetSYSTEMTIME(timeLoDW=>stFileTime.dwLowDateTime,
+				timeHiDW=>stFileTime.dwHighDateTime);
+				
+//Specific local time in WEST europe zone--Daylight saving time 
+fbFiletime_toLocaltime(in:=stFileTime,tzInfo:=WEST_EUROPE_TZI);		
+				
+dateNow:=REPLACE(TO_STRING(TO_DATE(FILETIME_TO_DT(fbFiletime_toLocaltime.out))),'',2,1);	//Replace D#YYYY-MM-DD with YYYY-MM-DD			
+TimeNow:=REPLACE(TO_STRING(DT_TO_TOD(FILETIME_TO_DT(fbFiletime_toLocaltime.out))),'',4,1); //Replace TOD#HH:MM:SS with HH:MM:SS
+stEvent.timesatamp:=CONCAT(CONCAT(dateNow,'  '),timeNow);			
+]]></ST>
+    </Implementation>
+    <LineIds Name="GetSystemTimeStamp">
+      <LineId Id="40" Count="1" />
+      <LineId Id="68" Count="2" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="55" Count="1" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="25" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.6">
+  <DUT Name="ST_Event" Id="{f75da5c5-6b58-4875-b104-70781c8fe24f}">
+    <Declaration><![CDATA[{attribute  'hide'}
+TYPE ST_Event :
+STRUCT
+	EventType:T_MaxString;
+	sEventText:T_MaxString;
+	timesatamp:T_MaxString;
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

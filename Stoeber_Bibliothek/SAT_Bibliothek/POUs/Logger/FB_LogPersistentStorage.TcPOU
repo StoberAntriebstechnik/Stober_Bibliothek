@@ -1,0 +1,112 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.6">
+  <POU Name="FB_LogPersistentStorage" Id="{4d705625-ca1c-4754-981a-010d3fed36ea}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_LogPersistentStorage IMPLEMENTS I_PersistentEventStorage
+VAR_INPUT
+	sPathName			:STRING;
+END_VAR
+VAR_OUTPUT
+	Error				:BOOL;
+END_VAR
+VAR
+	fbFileOpen			:FB_FileOpen;
+	fbFilePuts			:FB_FilePuts;
+	fbFileClose			:FB_FileClose;
+	eLogWriteState		:eWriteState;
+	stEventWriteToFile	:ST_Event;
+	csvString			:T_MaxString;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[CASE eLogWriteState OF 
+	eWriteState.FileOpen_TRIGGER://open file
+		fbFileOpen(sNetId:='',nMode:=FOPEN_MODEAPPEND OR FOPEN_MODETEXT,
+					sPathName:=sPathName,ePath:=PATH_GENERIC,bExecute:=TRUE);
+		IF NOT fbFileOpen.bBusy THEN 
+			IF fbFileOpen.bError THEN
+				eLogWriteState:=eWriteState.ERROR;
+			ELSE
+				fbFileOpen(sNetId:='',bExecute:=FALSE);
+				eLogWriteState:=eWriteState.WAIT_FOR_EVENT;
+			END_IF
+		END_IF 			
+				
+  
+	eWriteState.WAIT_FOR_EVENT:
+		//do nothing here waits for the event to trigger the new event see the store event 
+		
+	eWriteState.WRITE_EVENT_TRIGGER:
+		csvString:=CreateLogString(stEvent:=stEventWriteToFile);
+		fbFilePuts(sNetId:='',bExecute:=TRUE,sLine:=csvString,hFile:=fbFileOpen.hFile);
+		IF NOT fbFilePuts.bBusy THEN 
+			IF fbFilePuts.bError THEN
+				eLogWriteState:=eWriteState.ERROR;
+			ELSE
+				fbFilePuts(sNetId:='',bExecute:=FALSE);
+				eLogWriteState:=eWriteState.FILE_CLOSE_TRIGGER;
+			END_IF
+		END_IF
+		
+	eWriteState.FILE_CLOSE_TRIGGER:
+		fbFileClose(bExecute:=TRUE,hFile:=fbFileOpen.hFile);
+		IF NOT fbFileClose.bBusy THEN 
+			IF fbFileClose.bError THEN
+				eLogWriteState:=eWriteState.ERROR;
+			ELSE
+				fbFileClose(sNetId:='',bExecute:=FALSE);
+				eLogWriteState:=eWriteState.FileOpen_TRIGGER;
+			END_IF
+		END_IF
+		
+	eWriteState.ERROR:
+		Error:=TRUE;
+
+END_CASE]]></ST>
+    </Implementation>
+    <Method Name="CreateLogString" Id="{dd7c7b2a-7abf-472f-a53a-fceb044fe945}">
+      <Declaration><![CDATA[METHOD PRIVATE CreateLogString : T_MaxString
+VAR_INPUT
+	stEvent:REFERENCE TO ST_Event;
+END_VAR
+VAR 
+	tempString:T_MaxString;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[tempString:=stEvent.timesatamp;
+tempString:=CONCAT(CONCAT(tempString,' : '),(stEvent.EventType));
+tempString:=CONCAT(CONCAT(tempString,' : '),stEvent.sEventText);
+tempString:=CONCAT(tempString,'$N');
+CreateLogString:=tempString;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="StoreEvent" Id="{f27094d8-b9da-456c-a85d-cdd02f165a31}">
+      <Declaration><![CDATA[METHOD StoreEvent
+VAR_INPUT
+	stEvent	: ST_Event;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF eLogWriteState=eWriteState.WAIT_FOR_EVENT THEN 
+	eLogWriteState:=eWriteState.WRITE_EVENT_TRIGGER;
+	stEventWriteToFile:=stEvent;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="FB_LogPersistentStorage">
+      <LineId Id="265" Count="42" />
+      <LineId Id="19" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_LogPersistentStorage.CreateLogString">
+      <LineId Id="22" Count="0" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="27" Count="1" />
+      <LineId Id="14" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_LogPersistentStorage.StoreEvent">
+      <LineId Id="15" Count="0" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

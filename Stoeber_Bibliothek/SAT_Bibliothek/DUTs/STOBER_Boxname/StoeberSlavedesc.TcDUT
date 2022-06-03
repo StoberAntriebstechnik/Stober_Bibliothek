@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.6">
+  <DUT Name="StoeberSlavedesc" Id="{d36650c8-3487-47a2-bcf6-6cfc63ce0ac2}">
+    <Declaration><![CDATA[{attribute 'hide'}
+TYPE StoeberSlavedesc :
+STRUCT
+	nAddr:WORD;
+	sType:STRING(15);
+	{attribute 'TcEncoding' := 'UTF-8'}
+	sName:STRING(31);
+	nDevType:DWORD;
+	iState:INT;
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

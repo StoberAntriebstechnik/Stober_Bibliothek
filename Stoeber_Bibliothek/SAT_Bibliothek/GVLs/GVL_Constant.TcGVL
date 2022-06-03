@@ -1,0 +1,10 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.6">
+  <GVL Name="GVL_Constant" Id="{4637c6be-1da3-47c6-9c7b-02f4f0dde2b5}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+VAR_GLOBAL CONSTANT
+	MAX_STOBER_SLAVES:INT:=200;
+	MaxSlaves:INT:=2000;
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

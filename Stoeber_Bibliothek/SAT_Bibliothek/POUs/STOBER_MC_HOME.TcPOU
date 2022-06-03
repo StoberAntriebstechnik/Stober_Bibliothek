@@ -1,0 +1,636 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.6">
+  <POU Name="STOBER_MC_HOME" Id="{7089af26-30a8-48e9-be61-24acabe99986}" SpecialFunc="None">
+    <Declaration><![CDATA[{attribute 'hide_all_locals'}
+(*The function block executes the drive specific homing of the axis and saves the reference in the Drive contorller*)
+FUNCTION_BLOCK STOBER_MC_HOME
+VAR_INPUT
+	Execute					:BOOL;				(*Start homing procedure with rising edge*)
+	SetModeOfOperation		:SINT:=8;
+END_VAR
+VAR_OUTPUT
+	Done					:BOOL;				(*Homing is done Successfully*)
+	ModeOfOperation	AT %Q*	:SINT;				(*output of modes of operation to be linked to the drive PDO mapping*)
+	Busy					:BOOL;				(*Homing procedure is active*)
+	CommandAborted			:BOOL;				(*homing procedure was aborted*)
+	Error					:BOOL;				(*Error is occured*)
+	ErrorID					:UDINT;				(*Error ID*)
+	FBErrorID				:eERROR;			(*Function block ErrorID*)
+END_VAR
+VAR
+	_AxisStatus					:MC_ReadStatus;
+	_stStatus					:ST_AxisStatus;
+	_Drivedata					:MC_ReadDriveAddress;
+	stdriveadress				:ST_DriveAddress;
+	_PositionLagMonitor			:ADSWRITE;
+	_ExecuteTrigger				:R_TRIG;
+	istate						:INT;
+	_LagMonitor					:UDINT;
+	init						:BOOL;
+	_writeNCIOOutput			:MC_WriteNcIoOutput;
+	_WriteReferenceFlag			:ADSWRITE;
+	_ReferenceFlag				:UDINT;
+	_AdsSetPosition				:ADSWrite;
+	_stSetPosition				:st_Set_Value;
+	_HomeOffSet					:DINT;
+	_fbHomeOffsetCOERead		:FB_CoERead;
+	_IndexID_A569				:WORD;	
+	_IndexID_A516				:WORD;
+	_IndexID_A586				:WORD;
+	_IndexID_A542				:WORD;
+	_Active						:BOOL;
+	_fbHomingMethodCOERead		:FB_CoERead;
+	_HomingMethod				:DINT;
+	_reloop						:BOOL;
+	_statusloop					:BOOL;	
+	_fbCOEStatusWord_Read		:FB_CoERead;
+	_StatusWord					:DINT;
+	_wStatusWord				:WORD;
+	_fbCOE_ModeOfOpeationDisplay:FB_CoERead;
+	_ModeOfOperationDisplay		:DINT;
+END_VAR
+VAR_IN_OUT
+	Axis						:AXIS_REF;				(*reference to axis*)
+END_VAR
+VAR CONSTANT
+	AXISA_A569_INDEX_ID			:WORD:=16#607C;
+	AXISB_A569_INDEX_ID			:WORD:=16#687C;
+	AXISA_A586_INDEX_ID			:WORD:=16#6098;
+	AXISB_A586_INDEX_ID			:WORD:=16#6898;
+	AXISA_A516_INDEX_ID			:WORD:=16#6041;
+	AXISB_A516_INDEX_ID			:WORD:=16#6841;
+	AXISA_A542_INDEX_ID			:WORD:=16#6061;
+	AXISB_A542_INDEX_ID			:WORD:=16#6861;
+	HOMING_MODE					:SINT:=6;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[//Write mode of operation from user input on initialisation 
+IF NOT init THEN 
+	ModeOfOperation:=SetModeOfOperation;
+	init:=TRUE;
+END_IF
+IF SetModeOfOperation<>8 AND SetModeOfOperation<>9 AND SetModeOfOperation<>10 AND Execute THEN 
+	Error:=TRUE;
+	FBErrorID:=eERROR.WRONG_MODE;
+	RETURN;		
+END_IF
+
+M_InternFbCall();
+M_StateMachine();
+M_GetParameterIndex();
+M_OutputHandle();
+M_SetPosition();
+
+//Write mode of operation from user input if homing run is not active
+IF NOT _Active THEN 
+	ModeOfOperation:=SetModeOfOperation;
+END_IF
+
+//Stop the homing run if axis error comes 
+IF (_AxisStatus.Error OR _AxisStatus.ErrorStop) AND _Active THEN 
+	iState:=0;
+	ModeOfOperation:=SetModeOfOperation;
+	Error:=TRUE;
+	Busy:=FALSE;
+	Done:=FALSE;
+	_Active:=FALSE;
+END_IF
+
+]]></ST>
+    </Implementation>
+    <Method Name="M_GetParameterIndex" Id="{54e32b23-da6c-42fb-b7a3-0c51c43ee6e9}">
+      <Declaration><![CDATA[METHOD PRIVATE M_GetParameterIndex : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF stdriveadress.Channel=0 THEN 
+	_IndexID_A569:=AXISA_A569_INDEX_ID;//index id for parameter A569 Axis A
+	_IndexID_A586:=AXISA_A586_INDEX_ID;//index id for parameter A586 Axis A
+	_IndexID_A516:=AXISA_A516_INDEX_ID;//index id for parameter A541 Axis A
+	_IndexID_A542:=AXISA_A542_INDEX_ID;//index id for parameter A542 Axis A
+ELSIF stdriveadress.Channel=1 THEN 
+ 	_IndexID_A569:=AXISB_A569_INDEX_ID;//index id for parameter A569 Axis B
+	_IndexID_A586:=AXISB_A586_INDEX_ID;//Index id for parameter A586 Axis B
+	_IndexID_A516:=AXISB_A516_INDEX_ID;//Index id for parameter A541 Axis B
+	_IndexID_A542:=AXISB_A542_INDEX_ID;//index id for parameter A542 Axis B
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="M_InternFbCall" Id="{dfdc63eb-4c88-425c-8eee-3fd808d3fc15}">
+      <Declaration><![CDATA[METHOD PRIVATE M_InternFbCall : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[{warning disable C0371}	
+//Read axis status 
+M_ReadStatus();
+//Refer to twincat NC-ADS manual index group and index offset used below in the function blocks input 
+//Get Drive NC-ADS access data 
+_Drivedata(	Execute:=Execute,Axis:=Axis,DriveAddress=>stdriveadress );
+
+//Rise trigger execute trigger for function block execution 	
+_ExecuteTrigger(CLK:=Execute);
+	
+//Enable/Disable position lag monitoring 
+_PositionLagMonitor(NETID:= ,Port:=501,IDXGRP:=16#6000+stdriveadress.NcAxisId,
+				IDXOFFS:=16#10,LEN:=SIZEOF(_LagMonitor),SRCADDR:=ADR(_LagMonitor),TMOUT:=T#0.1S );
+				
+//Overwrite NC process image--> NC control word Ctrl1			
+_writeNCIOOutput(Axis:=Axis ,Device:=E_NcIoDevice.NcIoDeviceDrive , 
+	NcIoOutput:=E_NcIoOutput.NcIoOutputnCtrl1,BitSelectMask:=16#10 );			
+
+//Set reset reference flag
+_WriteReferenceFlag(NETID:='',PORT:=501,IDXGRP:=16#4200+stdriveadress.NcAxisId,
+					IDXOFFS:=16#1B,LEN:=SIZEOF(_ReferenceFlag),SRCADDR:=ADR(_ReferenceFlag));	
+
+//Set target postion 
+_AdsSetPosition(NETID:='',PORT:=501,IDXGRP:=16#4100+stdriveadress.NcAxisId,
+				IDXOFFS:=16#60,LEN:=SIZEOF(_stSetPosition),SRCADDR:=ADR(_stSetPosition));	
+				
+//Read homing methods
+_fbHomingMethodCOERead(	NetId:='' ,Index:=_IndexID_A586,SubIndex:=0,pDstBuf:=ADR(_HomingMethod), 
+						BufLen:=SIZEOF(_HomingMethod),Axis:= Axis);	
+								
+//Read status word A516
+_fbCOEStatusWord_Read(NetId:='',Index:=_IndexID_A516,SubIndex:=16#0,Axis:=Axis,pDstBuf:=ADR(_StatusWord),
+					 BufLen:=SIZEOF(_StatusWord));
+											
+//Read homing offset 
+_fbHomeOffsetCOERead(NetId:= ,Index:=_IndexID_A569 ,SubIndex:=0 ,pDstBuf:= ADR(_HomeOffSet),
+					 BufLen:=SIZEOF(_HomeOffSet) ,Axis:= Axis);		
+
+//Read mode of operation display 
+_fbCOE_ModeOfOpeationDisplay(NetId:='',Index:=_IndexID_A542,SubIndex:=0,pDstBuf:=ADR(_ModeOfOperationDisplay),
+							 BufLen:=SIZEOF(_ModeOfOperationDisplay),Axis:=Axis);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="M_OutputHandle" Id="{669b98cf-8b34-4a83-9201-1cedc378bb93}">
+      <Declaration><![CDATA[METHOD PRIVATE M_OutputHandle : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//Reset Error when no Execute 
+IF Error AND NOT Execute THEN 
+	Error:=FALSE;
+	ErrorId:=0;
+	FBErrorID:=eERROR.NO_ERROR;
+END_IF
+//Reset Done if no execute 
+IF Done AND NOT Execute THEN 
+	Done:=FALSE;
+END_IF
+//Reset Commandaborted if no execute 
+IF CommandAborted AND NOT Execute THEN 
+	CommandAborted:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="M_ReadStatus" Id="{88b8c826-f773-4afb-8119-e789e853abdc}">
+      <Declaration><![CDATA[METHOD PRIVATE M_ReadStatus : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[{warning disable C0371}	
+_AxisStatus(Axis:=Axis,Enable:=TRUE,Status=>_stStatus);
+//check for motion command lock when homing is runnig and MC_Stop is executed then homing run is aborted
+IF _stStatus.MotionCommandsLocked AND Busy THEN 
+	CommandAborted:=TRUE;
+	Busy:=FALSE;
+	ModeOfOperation:=SetModeOfOperation;
+	iState:=0;
+END_IF
+
+//Read the staus word A516 cyclic
+IF busy AND iState>30 THEN 
+	REPEAT 
+		_statusloop:=FALSE;
+		_fbCOEStatusWord_Read(Execute:=TRUE,Axis:=Axis);
+		IF NOT _fbCOEStatusWord_Read.Busy THEN 
+			_fbCOEStatusWord_Read(Execute:=FALSE,Axis:=Axis);
+		END_IF
+		IF  _fbCOEStatusWord_Read.Error THEN 
+			_fbCOEStatusWord_Read(Execute:=FALSE,Axis:=Axis);
+			Error:=TRUE;
+			ErrorID:=_fbCOEStatusWord_Read.AdsErrId;
+			iState:=900;
+			EXIT;
+		END_IF		
+		
+	UNTIL NOT _statusloop
+	END_REPEAT
+ELSE 
+	_fbCOEStatusWord_Read(Execute:=FALSE,Axis:=Axis);	
+END_IF
+
+//abort command if axis enable is withdrawn during homing run 
+_wStatusWord:=DINT_TO_WORD(_StatusWord);
+IF Busy AND _wStatusWord.1=FALSE AND iState>50 THEN 
+	CommandAborted:=TRUE;
+	Busy:=FALSE;
+	ModeOfOperation:=SetModeOfOperation;
+	iState:=0;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="M_SetPosition" Id="{e5c91de0-c6dc-46f3-bb4b-c69e4d2f6ee9}">
+      <Declaration><![CDATA[METHOD PRIVATE M_SetPosition : BOOL
+VAR_INPUT
+END_VAR
+
+VAR
+	
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[{warning disable C0371}	
+//Write target position during homing mode 
+IF Busy AND iState>50 THEN 
+	REPEAT 
+		_reloop:=FALSE;
+		_stSetPosition.SetPosition:=Axis.NcToPlc.ActPos;
+		
+		_AdsSetPosition(WRITE:=TRUE);
+		IF NOT _AdsSetPosition.busy THEN 
+			_AdsSetPosition(WRITE:=FALSE);
+		END_IF
+		IF _AdsSetPosition.ERR THEN 
+			Error:=TRUE;
+			ErrorID:=_AdsSetPosition.ERRID;
+			iState:=900;
+			EXIT;
+		END_IF
+	UNTIL NOT _reloop
+	END_REPEAT	
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="M_StateMachine" Id="{4017c47f-b8b7-4e53-8e3c-d5a9b5891d22}">
+      <Declaration><![CDATA[METHOD PRIVATE M_StateMachine : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[{warning disable C0371}	
+CASE istate OF 
+	0://Reset all outputs 
+		_Drivedata(Axis:=Axis,Execute:=FALSE);
+		IF _ExecuteTrigger.Q THEN 
+			IF _AxisStatus.Standstill THEN 
+				_writeNCIOOutput.Execute:=FALSE;
+				_AdsSetPosition(WRITE:=FALSE);
+				_PositionLagMonitor(WRITE:=FALSE);
+				_WriteReferenceFlag(WRITE:=FALSE);
+				_fbHomingMethodCOERead(Axis:=Axis,Execute:=FALSE);
+				_fbHomeOffsetCOERead(Execute:=FALSE ,Axis:= Axis);
+				_WriteReferenceFlag(WRITE:=FALSE);	
+				_fbCOEStatusWord_Read(Axis:=Axis,Execute:=FALSE);		
+				Busy:=TRUE;
+				_Active:=TRUE;
+				Done:=FALSE;
+				Error:=FALSE;
+				ErrorID:=0;
+				FBErrorID:=(eERROR.NO_ERROR);
+				CommandAborted:=FALSE;
+				iState:=iState+5;	
+			ELSE
+				Error:=TRUE;
+				FBErrorID:=(eERROR.AXIS_NOT_ENABLED);
+				istate:=900;	
+			END_IF
+		END_IF
+	5://reset NC reference FLAG 
+		_ReferenceFlag:=0;
+		_WriteReferenceFlag(WRITE:=TRUE);
+		IF NOT _WriteReferenceFlag.BUSY THEN 
+			_WriteReferenceFlag(WRITE:=FALSE);
+			iState:=iState+5;
+		ELSIF _WriteReferenceFlag.ERR THEN
+			Error:=TRUE;
+			ErrorID:=_WriteReferenceFlag.ERRID;
+			iState:=900;	
+		END_IF
+	
+	10://Get the drive NC-ADS data 
+		_Drivedata.Execute:=TRUE;
+		IF NOT _Drivedata.Busy AND _Drivedata.Done THEN
+			iState:=iState+10;
+		END_IF 	
+		IF _Drivedata.Error THEN 
+			Error:=TRUE;
+			iState:=900;
+		END_IF
+		
+	20://Disable Position lag monitoring
+		_LagMonitor:=0;
+		_PositionLagMonitor(WRITE:=TRUE);
+		IF NOT 	_PositionLagMonitor.BUSY THEN
+			_PositionLagMonitor(WRITE:=FALSE);
+			iState:=iState+10;
+		ELSIF 	_PositionLagMonitor.ERR THEN 
+			Error:=TRUE;
+			ErrorID:=_PositionLagMonitor.ERRID;
+			iState:=900;
+		END_IF
+		
+	30: //set Mode of operation to homing mode 
+			ModeOfOperation:=HOMING_MODE;	
+			istate:=istate+10;
+		
+	40://confirm mode of operation 	
+		_fbCOE_ModeOfOpeationDisplay(Execute:=TRUE,Axis:=Axis);
+		IF NOT _fbCOE_ModeOfOpeationDisplay.Busy THEN 
+			_fbCOE_ModeOfOpeationDisplay(Execute:=FALSE,Axis:=Axis);
+			IF _ModeOfOperationDisplay<>HOMING_MODE THEN 
+				Error:=TRUE;
+				FBErrorID:=eERROR.NO_DEVICE_LINK;
+				iState:=900;
+			ELSE
+				iState:=iState+10;	
+			END_IF
+		ELSIF 	_fbCOE_ModeOfOpeationDisplay.Error THEN 
+			Error:=TRUE;
+			ErrorID:=_fbCOE_ModeOfOpeationDisplay.AdsErrId;
+			_fbCOE_ModeOfOpeationDisplay(Execute:=FALSE,Axis:=Axis);
+			iState:=900;
+		END_IF
+		
+			
+	50://Read Homing offset 
+		_fbHomeOffsetCOERead(Axis:=Axis,Execute:=TRUE);
+		IF NOT _fbHomeOffsetCOERead.Busy THEN 
+			_fbHomeOffsetCOERead(Execute:=FALSE ,Axis:= Axis);
+			istate:=istate+10;
+		ELSIF _fbHomeOffsetCOERead.Error THEN 
+			Error:=TRUE;
+			ErrorID:=_fbHomeOffsetCOERead.AdsErrId;
+			iState:=900;
+		END_IF
+		
+	60://Read homing method 
+		_fbHomingMethodCOERead(Axis:=Axis,Execute:=TRUE);			
+		IF NOT _fbHomingMethodCOERead.Busy THEN 
+			_fbHomingMethodCOERead(Axis:=Axis,Execute:=FALSE);
+			IF (_HomingMethod=0) THEN 
+				Error:=TRUE;
+				FBErrorID:=(eERROR.HOMING_METHOD_INACTIVE);
+				iState:=900;
+			ELSE	
+				iState:=iState+10;	
+			END_IF
+		ELSIF 	_fbHomingMethodCOERead.Error THEN
+			Error:=TRUE;
+			ErrorID:=_fbHomingMethodCOERead.AdsErrId;
+			iState:=900;
+		END_IF
+	70://Reset bit 4 of NC control word and start homing
+		_writeNCIOOutput.BitValues:=0;
+		_writeNCIOOutput.Execute:=TRUE;
+		IF _writeNCIOOutput.Done THEN
+				istate:=istate+10;
+				_writeNCIOOutput.Execute:=FALSE;
+		END_IF		
+			
+	80://wait till homing is done 	or wait till bit 10 of status word is true 	
+		 IF _wStatusWord.10 = TRUE AND _wStatusWord.12 THEN 
+			 ModeOfOperation:=8;
+			 iState:=iState+10;
+		 END_IF
+		
+	90://Set NC reference FLAG
+		 _ReferenceFlag:=1;
+		_WriteReferenceFlag(WRITE:=TRUE);
+		IF NOT _WriteReferenceFlag.BUSY THEN 
+			_WriteReferenceFlag(WRITE:=FALSE);
+			iState:=iState+10;
+		ELSIF _WriteReferenceFlag.ERR THEN
+			Error:=TRUE;
+			ErrorID:=_WriteReferenceFlag.ERRID;
+			iState:=900;	
+		END_IF
+	100://Enable position monitoring 
+		_LagMonitor:=1;
+		_PositionLagMonitor(WRITE:=TRUE);
+		IF NOT 	_PositionLagMonitor.BUSY THEN
+			_PositionLagMonitor(WRITE:=FALSE);
+			iState:=iState+10;
+		ELSIF 	_PositionLagMonitor.ERR THEN 
+			Error:=TRUE;
+			ErrorID:=_PositionLagMonitor.ERRID;
+		END_IF	
+	
+	110://set mode of operation back to setoperationmode 
+		ModeOfOperation:=SetModeOfOperation;
+		_writeNCIOOutput.BitValues:=0;
+		_writeNCIOOutput.Execute:=TRUE;
+		IF _writeNCIOOutput.Done THEN 
+				_writeNCIOOutput.Execute:=FALSE;
+				Done:=TRUE;
+				Busy:=FALSE;
+				_Active:=FALSE;
+				iState:=0;
+		END_IF
+	
+	900://Error state
+		istate:=0;
+		ModeOfOperation:=SetModeOfOperation;
+		Busy:=FALSE;
+		_Active:=FALSE;
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="STOBER_MC_HOME">
+      <LineId Id="1895" Count="0" />
+      <LineId Id="1897" Count="2" />
+      <LineId Id="1896" Count="0" />
+      <LineId Id="2038" Count="1" />
+      <LineId Id="2098" Count="0" />
+      <LineId Id="2097" Count="0" />
+      <LineId Id="2037" Count="0" />
+      <LineId Id="2036" Count="0" />
+      <LineId Id="437" Count="0" />
+      <LineId Id="1275" Count="0" />
+      <LineId Id="1747" Count="1" />
+      <LineId Id="1816" Count="0" />
+      <LineId Id="1973" Count="0" />
+      <LineId Id="594" Count="0" />
+      <LineId Id="1887" Count="2" />
+      <LineId Id="1974" Count="0" />
+      <LineId Id="638" Count="0" />
+      <LineId Id="602" Count="0" />
+      <LineId Id="606" Count="0" />
+      <LineId Id="1561" Count="0" />
+      <LineId Id="1211" Count="1" />
+      <LineId Id="1328" Count="0" />
+      <LineId Id="1622" Count="0" />
+      <LineId Id="604" Count="0" />
+      <LineId Id="736" Count="0" />
+      <LineId Id="217" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_MC_HOME.M_GetParameterIndex">
+      <LineId Id="8" Count="2" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="11" Count="2" />
+      <LineId Id="18" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_MC_HOME.M_InternFbCall">
+      <LineId Id="41" Count="0" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="77" Count="0" />
+      <LineId Id="84" Count="0" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="86" Count="0" />
+      <LineId Id="121" Count="0" />
+      <LineId Id="83" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="88" Count="0" />
+      <LineId Id="33" Count="0" />
+      <LineId Id="45" Count="0" />
+      <LineId Id="49" Count="0" />
+      <LineId Id="89" Count="0" />
+      <LineId Id="56" Count="0" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="62" Count="0" />
+      <LineId Id="72" Count="0" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="73" Count="0" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="92" Count="0" />
+      <LineId Id="78" Count="1" />
+      <LineId Id="93" Count="0" />
+      <LineId Id="97" Count="0" />
+      <LineId Id="109" Count="0" />
+      <LineId Id="111" Count="0" />
+      <LineId Id="110" Count="0" />
+      <LineId Id="129" Count="0" />
+      <LineId Id="131" Count="2" />
+      <LineId Id="130" Count="0" />
+      <LineId Id="134" Count="0" />
+      <LineId Id="136" Count="0" />
+      <LineId Id="135" Count="0" />
+      <LineId Id="141" Count="0" />
+      <LineId Id="140" Count="0" />
+      <LineId Id="142" Count="0" />
+      <LineId Id="146" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_MC_HOME.M_OutputHandle">
+      <LineId Id="6" Count="3" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="10" Count="3" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="17" Count="3" />
+    </LineIds>
+    <LineIds Name="STOBER_MC_HOME.M_ReadStatus">
+      <LineId Id="13" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="38" Count="2" />
+      <LineId Id="42" Count="2" />
+      <LineId Id="41" Count="0" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="48" Count="0" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="20" Count="1" />
+      <LineId Id="28" Count="2" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="50" Count="3" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="33" Count="1" />
+      <LineId Id="18" Count="0" />
+      <LineId Id="62" Count="7" />
+      <LineId Id="61" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_MC_HOME.M_SetPosition">
+      <LineId Id="29" Count="0" />
+      <LineId Id="36" Count="0" />
+      <LineId Id="6" Count="9" />
+      <LineId Id="26" Count="1" />
+      <LineId Id="37" Count="0" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="18" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="STOBER_MC_HOME.M_StateMachine">
+      <LineId Id="173" Count="0" />
+      <LineId Id="6" Count="6" />
+      <LineId Id="353" Count="3" />
+      <LineId Id="358" Count="1" />
+      <LineId Id="13" Count="3" />
+      <LineId Id="368" Count="1" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="19" Count="2" />
+      <LineId Id="363" Count="0" />
+      <LineId Id="22" Count="31" />
+      <LineId Id="55" Count="1" />
+      <LineId Id="357" Count="0" />
+      <LineId Id="57" Count="2" />
+      <LineId Id="63" Count="0" />
+      <LineId Id="170" Count="0" />
+      <LineId Id="67" Count="0" />
+      <LineId Id="373" Count="0" />
+      <LineId Id="375" Count="0" />
+      <LineId Id="380" Count="1" />
+      <LineId Id="387" Count="1" />
+      <LineId Id="390" Count="3" />
+      <LineId Id="389" Count="0" />
+      <LineId Id="383" Count="2" />
+      <LineId Id="394" Count="0" />
+      <LineId Id="386" Count="0" />
+      <LineId Id="382" Count="0" />
+      <LineId Id="379" Count="0" />
+      <LineId Id="374" Count="0" />
+      <LineId Id="186" Count="0" />
+      <LineId Id="76" Count="0" />
+      <LineId Id="79" Count="8" />
+      <LineId Id="100" Count="0" />
+      <LineId Id="167" Count="0" />
+      <LineId Id="148" Count="1" />
+      <LineId Id="176" Count="1" />
+      <LineId Id="364" Count="0" />
+      <LineId Id="175" Count="0" />
+      <LineId Id="322" Count="0" />
+      <LineId Id="180" Count="0" />
+      <LineId Id="152" Count="0" />
+      <LineId Id="310" Count="0" />
+      <LineId Id="153" Count="2" />
+      <LineId Id="150" Count="0" />
+      <LineId Id="312" Count="5" />
+      <LineId Id="311" Count="0" />
+      <LineId Id="146" Count="0" />
+      <LineId Id="145" Count="0" />
+      <LineId Id="339" Count="0" />
+      <LineId Id="349" Count="0" />
+      <LineId Id="342" Count="1" />
+      <LineId Id="246" Count="0" />
+      <LineId Id="119" Count="10" />
+      <LineId Id="250" Count="0" />
+      <LineId Id="252" Count="5" />
+      <LineId Id="259" Count="1" />
+      <LineId Id="251" Count="0" />
+      <LineId Id="130" Count="2" />
+      <LineId Id="292" Count="1" />
+      <LineId Id="290" Count="0" />
+      <LineId Id="298" Count="0" />
+      <LineId Id="296" Count="1" />
+      <LineId Id="294" Count="0" />
+      <LineId Id="305" Count="0" />
+      <LineId Id="295" Count="0" />
+      <LineId Id="261" Count="0" />
+      <LineId Id="139" Count="2" />
+      <LineId Id="181" Count="1" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>
