@@ -76,7 +76,7 @@ END_VAR
 ]]></Declaration>
       <Implementation>
         <ST><![CDATA[//Falsche AMSnetID verknüft--Wrong AMSNetID connected
-_sAmsNetID:=NetID;
+_sAmsNetID:=AmsNetId_EtherCAT_Master;
 IF _sAmsNetID='' OR _sAmsNetID='0.0.0.0.0.0' THEN 
 	Error:=TRUE;
 	FBErrorID:=100; //'EtherCAT AMS ID is empty'
@@ -284,7 +284,7 @@ END_IF
       </Implementation>
     </Method>
     <Method Name="METH_OutputHandle" Id="{03ee2159-e590-4d7d-81bf-93791424d33a}">
-      <Declaration><![CDATA[METHOD METH_OutputHandle : BOOL
+      <Declaration><![CDATA[METHOD PRIVATE METH_OutputHandle : BOOL
 VAR_INPUT
 END_VAR
 ]]></Declaration>

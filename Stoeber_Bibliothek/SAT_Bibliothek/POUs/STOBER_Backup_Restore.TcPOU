@@ -520,14 +520,18 @@ CASE _iState OF
 		GetBoxName();	
 	
 	4://Check the posibility of backup and restore 
-		_EventTrigger(CLK:=TRUE);
+				_EventTrigger(CLK:=TRUE);
 		IF _EventTrigger.Q THEN 
 			IF iAction=2 AND Servicetype=eSERVICE.Restore THEN 
 				// File log restore action started
 				_eventText:=CONCAT(CONCAT('Restore action of ',_sBoxName), ' is started');
 				
-			ELSIF iAction=0 AND (Servicetype=eSERVICE.Backup OR Servicetype=eSERVICE.Backup_RevDocu) THEN 
-				_eventText:=CONCAT(CONCAT('Backup action of ',_sBoxName), ' is started');
+			ELSIF iAction=0  THEN
+				IF (Servicetype=eSERVICE.Backup OR Servicetype=eSERVICE.Backup_RevDocu) THEN  
+					_eventText:=CONCAT(CONCAT('Backup action of ',_sBoxName), ' is started');
+				ELSIF Servicetype=eSERVICE.Restore THEN 
+					_eventText:=CONCAT(CONCAT('Restore action of ',_sBoxName), ' is started');
+				END_IF	
 			ELSE
 				//error if action is restore action is shown and backup service is chosen by user and vice versa 
 				_eventText:=CONCAT(_sBoxName, ' Read or write not possible, choose Service input according to iAction');
@@ -593,7 +597,7 @@ CASE _iState OF
 		END_IF	
 
 	8:
-		  IF iAction=2 AND Servicetype=eSERVICE.Restore THEN 
+		  IF Servicetype=eSERVICE.Restore THEN 
 				_iState:=_iState+1;
 		  ELSIF iAction=0 AND  (Servicetype=eSERVICE.Backup OR Servicetype=eSERVICE.Backup_RevDocu) THEN
 				//log the file with backup successful
@@ -1320,26 +1324,7 @@ END_CASE
       <LineId Id="222" Count="1" />
       <LineId Id="29" Count="0" />
       <LineId Id="224" Count="0" />
-      <LineId Id="213" Count="1" />
-      <LineId Id="196" Count="1" />
-      <LineId Id="202" Count="0" />
-      <LineId Id="216" Count="0" />
-      <LineId Id="200" Count="1" />
-      <LineId Id="210" Count="0" />
-      <LineId Id="212" Count="0" />
-      <LineId Id="211" Count="0" />
-      <LineId Id="232" Count="0" />
-      <LineId Id="323" Count="0" />
-      <LineId Id="322" Count="0" />
-      <LineId Id="282" Count="0" />
-      <LineId Id="198" Count="0" />
-      <LineId Id="301" Count="1" />
-      <LineId Id="306" Count="1" />
-      <LineId Id="310" Count="0" />
-      <LineId Id="304" Count="1" />
-      <LineId Id="308" Count="0" />
-      <LineId Id="303" Count="0" />
-      <LineId Id="309" Count="0" />
+      <LineId Id="568" Count="29" />
       <LineId Id="194" Count="0" />
       <LineId Id="30" Count="0" />
       <LineId Id="33" Count="0" />
@@ -1362,17 +1347,7 @@ END_CASE
       <LineId Id="70" Count="0" />
       <LineId Id="347" Count="0" />
       <LineId Id="77" Count="0" />
-      <LineId Id="162" Count="0" />
-      <LineId Id="170" Count="0" />
-      <LineId Id="172" Count="0" />
-      <LineId Id="230" Count="1" />
-      <LineId Id="238" Count="1" />
-      <LineId Id="242" Count="0" />
-      <LineId Id="244" Count="0" />
-      <LineId Id="237" Count="0" />
-      <LineId Id="173" Count="0" />
-      <LineId Id="554" Count="0" />
-      <LineId Id="174" Count="1" />
+      <LineId Id="598" Count="13" />
       <LineId Id="171" Count="0" />
       <LineId Id="159" Count="0" />
       <LineId Id="393" Count="0" />
